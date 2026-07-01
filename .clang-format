@@ -1,0 +1,7 @@
+---
+BasedOnStyle: LLVM   # or Microsoft, Google, etc. — LLVM is a good starting point
+IndentWidth: 8
+TabWidth: 8
+UseTab: Always
+BreakBeforeBraces: Attach   # adjust as needed
+ColumnLimit: 0              # or your preferred line length
