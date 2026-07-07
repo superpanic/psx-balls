@@ -1,4 +1,4 @@
-TARGET = balls
+TARGET = psx-balls
 TYPE = ps-exe
 
 SRCS = \

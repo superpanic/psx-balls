@@ -10,11 +10,12 @@
 			data_preparer    = "MKPSXISO"
 			copyright        = "COPYLEFT"
 		/>
-		<license file="LCNSFILE\LICENSEE.DAT"/>
+		<!-- use forward slash: /  on mac -->
+		<license file="LCNSFILE/LICENSEE.DAT"/>
 		<directory_tree>
 			<file name="SYSTEM.CNF"	 type="data"	source="SYSTEM.TXT"/>
-			<file name="MAIN.EXE"	 type="data"	source="balls.ps-exe"/>
-			<file name="CUBE.GLB"   type="data" 	source="ASSETS\GFX\CUBE.GLB"/>
+			<file name="MAIN.EXE"	 type="data"	source="psx-balls.ps-exe"/>
+			<file name="CUBE.GLB"   type="data" 	source="ASSETS/GFX/CUBE.GLB"/>
 			<dummy sectors="1024"/>
 		</directory_tree>
 	</track>
