@@ -14,6 +14,7 @@
 #include "psyqo/vector.hh"
 #include "psyqo/xprintf.h"
 #include "psyqo/iso9660-parser.hh"
+#include "cd.hh"
 #include <cstddef>
 #include <cstdint>
 
@@ -158,6 +159,8 @@ void CubeScene::start(StartReason reason) {
 			printf("Failed to initialize ISO9660\n");
 		}
 	});
+
+	CD cd;
 
 	glTF gltf;
 	gltf.parse("cube.glb");

@@ -5,7 +5,9 @@
 #include "psyqo/iso9660-parser.hh"
 
 class CD {
-	public:
+	public: 
+		CD() : m_parser(&m_cdrom) {   }
+
 		bool load(eastl::string filename);
 		bool getIsPrepared();
 	private:

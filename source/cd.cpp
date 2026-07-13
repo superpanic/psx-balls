@@ -11,8 +11,9 @@ bool CD::load(eastl::string filename) {
 			if(!m_parser.initialized()) {
 				m_parser.initialize( [this](bool s) { onParserInit(s); } );
 				m_state = State::InitParser;
+			} else {
+				m_state = State::FindFile;
 			}
-			m_state = State::FindFile;
 			break;
 		case State::InitParser:
 			// wait for parser init
