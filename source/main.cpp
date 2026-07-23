@@ -46,8 +46,6 @@ class Cube final : public psyqo::Application {
 
 class CubeScene final : public psyqo::Scene {
 	public:
-		CubeScene() : m_parser(&m_cdrom) {   }
-
 		void start(StartReason reason) override;
 		void frame() override;
 
@@ -80,23 +78,7 @@ class CubeScene final : public psyqo::Scene {
 		};
 
 	private:
-		enum class State {
-			InitCDROM,
-			InitParser,
-			FindFile,
-			Loading,
-			Ready,
-			Error
-		};
-		
-		State m_state = State::InitCDROM;
-		
-		void loadAssets();
-    		void onParserInit(bool success);
-    		void onFileFound(bool success);
-
-		psyqo::CDRomDevice m_cdrom;
-		psyqo::ISO9660Parser m_parser;
+		CD cdrom;
 };
 
 static Cube cube;
@@ -134,56 +116,25 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 
+	cdrom.read("CUBE.GLB;1");
 
-	loadAssets();
-
-	m_cdrom.prepare();
-	m_parser.initialize([this](bool success) { 
-		if(success) {
-			printf("ISO9660 parser ready\n");
-			uint32_t start_sector, file_size;
-			psyqo::ISO9660Parser::DirEntry entry;
-			m_parser.getDirentry("CUBE.GLB;1", &entry, [this, &entry, &start_sector, &file_size](bool success) {
-				if(success && entry.type == psyqo::ISO9660Parser::DirEntry::FILE) {
-					start_sector = entry.LBA;
-					file_size = entry.size;
-					printf("SUCCESS: file entry found!\n");
-					printf("Direntry file size: %d\n", file_size);
-					printf("Direntry start sector: %d\n", start_sector);
-				} else {
-					printf("ERROR: file entry not found!\n");
-				}
-			});
-
-		} else {
-			printf("Failed to initialize ISO9660\n");
-		}
-	});
-
-	CD cd;
-
-	glTF gltf;
-	gltf.parse("cube.glb");
-}
-
-void CubeScene::loadAssets() {
-	switch (m_state) {
-		case State::InitCDROM:
-			break;
-		case State::InitParser:
-			break;
-		case State::FindFile:
-			break;
-		case State::Loading:
-			break;
-		case State::Ready:
-			break;
-		case State::Error:
-			break;
-	}
+//	glTF gltf;
+//	gltf.parse("CUBE.GLB");
 }
 
 void CubeScene::frame() {
+
+	cdrom.advance();   // Drive the state machine
+
+    if (!cdrom.isReady()) {
+        // Still loading → just clear screen
+        int parity = gpu().getParity();
+        auto &clear = m_clear[parity];
+        gpu().getNextClear(clear.primitive, c_bg);
+        gpu().chain(clear);
+        return;
+    }
+
 	eastl::array<psyqo::Vertex, 4> projected;
 
 	// Get which frame we're currently drawing
