@@ -41,4 +41,5 @@ class CD {
 		void onReset(bool success);
 		void onParserInit(bool success);
 		void onFileFound(bool success);
+		void onFileLoaded(bool success);
 };

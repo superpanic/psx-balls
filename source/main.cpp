@@ -1,4 +1,3 @@
-#include "glTF.hh"
 #include "psyqo/application.hh"
 #include "psyqo/cdrom-device.hh"
 #include "psyqo/fixed-point.hh"
@@ -13,10 +12,15 @@
 #include "psyqo/trigonometry.hh"
 #include "psyqo/vector.hh"
 #include "psyqo/xprintf.h"
+#include "psyqo/buffer.hh"
 #include "psyqo/iso9660-parser.hh"
-#include "cd.hh"
+
 #include <cstddef>
 #include <cstdint>
+
+#include "object.hh"
+#include "cd.hh"
+#include "glTF.hh"
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -42,6 +46,7 @@ class Cube final : public psyqo::Application {
 
 	public:
 		psyqo::Trig<> m_trig;
+
 };
 
 class CubeScene final : public psyqo::Scene {
@@ -78,7 +83,9 @@ class CubeScene final : public psyqo::Scene {
 		};
 
 	private:
-		CD cdrom;
+		CD m_cdrom;
+		Object m_object_cube = {.mesh = nullptr, .position = {0, 0, 0}, .rotation = {0, 0, 0}, .scale = {1, 1, 1}};
+		
 };
 
 static Cube cube;
@@ -116,7 +123,7 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 
-	cdrom.read("CUBE.GLB;1");
+	m_cdrom.read("CUBE.GLB;1");
 
 //	glTF gltf;
 //	gltf.parse("CUBE.GLB");
@@ -124,9 +131,9 @@ void CubeScene::start(StartReason reason) {
 
 void CubeScene::frame() {
 
-	cdrom.advance();   // Drive the state machine
+	m_cdrom.advance();   // Drive the state machine
 
-    if (!cdrom.isReady()) {
+    if (!m_cdrom.isReady()) {
         // Still loading → just clear screen
         int parity = gpu().getParity();
         auto &clear = m_clear[parity];
