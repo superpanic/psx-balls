@@ -6,3 +6,4 @@ PSX.Dev-README.md
 *.dep
 *.o
 *.a
+.DS_Store
