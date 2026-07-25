@@ -2,7 +2,8 @@
 
 #include "psyqo/vector.hh"
 
-#define GBL_MAGIC 0x47424C00   // "GBL\0"
+#define GLTF_MAGIC 0x676C5446  // "glTF"
+
 #define GBL_VERSION (1)
 #define GBL_HEADER_SIZE (12)
 #define SMALL_MODEL_MAX_VERTICES (256)

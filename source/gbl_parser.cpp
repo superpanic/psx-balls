@@ -1,6 +1,6 @@
 #include "gbl_parser.hh"
 #include "psyqo/xprintf.h"
-#include <cstring>
+#include "parse_macros.hh"
 
 bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 
@@ -8,14 +8,15 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
         return false; // Not enough data for magic number
     }
 
-    uint32_t magic;
-    memcpy(&magic, data, sizeof(uint32_t));
+    // big endian byte copy
+    uint32_t magic = READ_BE32(data);
     
-    if(magic != GBL_MAGIC) {
+    if(magic != GLTF_MAGIC) {
         return false; // Invalid magic number
     } else {
-        printf("GBL magic number verified: 0x%08X\n", magic);
+        printf("GLTF magic number verified: 0x%08X\n", magic);
     }
+
 /*
     // Read header
     uint32_t numVertices = *(const uint32_t *)(data);
