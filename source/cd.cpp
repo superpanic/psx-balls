@@ -2,9 +2,6 @@
 #include "psyqo/kernel.hh"
 #include "psyqo/xprintf.h"
 
-constexpr size_t MAX_FILE_SIZE = 64 * 1024;   // e.g. 64 KB max per model
-alignas(4) uint8_t g_file_buffer[MAX_FILE_SIZE];
-
 void CD::read(eastl::string filename) {
     psyqo::Kernel::assert(filename.size() <= MAX_FILENAME_LENGTH, "Filename too long");
 	m_filename = filename;
@@ -30,9 +27,8 @@ bool CD::advance() {
 		case State::LoadingFile: {
 				uint32_t sectorCount = (m_entry.size + 2047) >> 11;  // (divide by 2048);
 				printf("Loading file %s ... (LBA=%d, size=%d, sectors=%d)\n", m_filename.c_str(), m_entry.LBA, m_entry.size, sectorCount);
-				m_cdrom.readSectors(m_entry.LBA, sectorCount, g_file_buffer, [this](bool s) { onFileLoaded(s); });
+				m_cdrom.readSectors(m_entry.LBA, sectorCount, m_file_buffer, [this](bool s) { onFileLoaded(s); });
 				printf("File ready at LBA=%d, size=%d. Implement sector read!\n", m_entry.LBA, m_entry.size);
-				m_state = State::Ready;
 			}
 			break;
 		case State::Ready:
@@ -88,7 +84,7 @@ void CD::onFileLoaded(bool success) {
 		printf("SUCCESS: File loaded\n");
 		printf("File data (first 16 bytes): ");
 		for (unsigned i = 0; i < 16 && i < m_entry.size; i++) {
-			printf("%02X ", g_file_buffer[i]);
+			printf("%02X ", m_file_buffer[i]);
 		}
 		printf("\n");
 		m_state = State::Ready;

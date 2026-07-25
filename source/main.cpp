@@ -18,9 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "object.hh"
+#include "gbl_parser.hh"
 #include "cd.hh"
-#include "glTF.hh"
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -84,8 +83,7 @@ class CubeScene final : public psyqo::Scene {
 
 	private:
 		CD m_cdrom;
-		Object m_object_cube = {.mesh = nullptr, .position = {0, 0, 0}, .rotation = {0, 0, 0}, .scale = {1, 1, 1}};
-		
+		Mesh m_cubemesh;		
 };
 
 static Cube cube;
@@ -125,8 +123,6 @@ void CubeScene::start(StartReason reason) {
 
 	m_cdrom.read("CUBE.GLB;1");
 
-//	glTF gltf;
-//	gltf.parse("CUBE.GLB");
 }
 
 void CubeScene::frame() {
@@ -134,13 +130,19 @@ void CubeScene::frame() {
 	m_cdrom.advance();   // Drive the state machine
 
     if (!m_cdrom.isReady()) {
-        // Still loading → just clear screen
+        // still loading → just clear screen
         int parity = gpu().getParity();
         auto &clear = m_clear[parity];
         gpu().getNextClear(clear.primitive, c_bg);
         gpu().chain(clear);
         return;
     }
+
+	if (!m_cubemesh.isValid()) {
+		// load the cube mesh from the GLB file
+		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_cubemesh);
+		psyqo::Kernel::assert(m_cubemesh.isValid(), "Failed to load Cube mesh from GLB file");
+	}
 
 	eastl::array<psyqo::Vertex, 4> projected;
 
