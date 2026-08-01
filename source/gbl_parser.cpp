@@ -47,14 +47,46 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 		printf("JSON chunk length: %u\n", chunkLength);
 	}
 
-	// parse mesh name
+	// parse meshes array
 	head = (const uint8_t*)find_key((const char*)head, "meshes");
+	psyqo::Kernel::assert(head != nullptr, "meshes ARRAY not found in glTF JSON chunk");
 	head = (const uint8_t*)find_key((const char*)head, "name");
-	psyqo::Kernel::assert(head != nullptr, "Mesh name not found in GLTF JSON");
+	psyqo::Kernel::assert(head != nullptr, "mesh NAME not found in glTF JSON chunk");
 	read_string((const char*&)head, mesh->name);
 	printf("mesh name: %s\n", mesh->name.c_str());
 
-	
+	uint8_t attr_position;
+	uint8_t attr_normal;
+	uint8_t attr_texcoord_0;
+	uint8_t attr_indices;
+	int32_t temp_val = 0;
+
+	// parse POSITION attribute
+	head = (const uint8_t*)find_key((const char*)head, "POSITION");
+	psyqo::Kernel::assert(head != nullptr, "POSITION attribute not found in glTF JSON chunk");
+	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read POSITION attribute index");
+	attr_position = static_cast<uint8_t>(temp_val);
+
+	// parse NORMAL attribute
+	head = (const uint8_t*)find_key((const char*)head, "NORMAL");
+	psyqo::Kernel::assert(head != nullptr, "NORMAL attribute not found in glTF JSON chunk");
+	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read NORMAL attribute index");
+	attr_normal = static_cast<uint8_t>(temp_val);
+
+	// parse TEXCOORD_0 attribute
+	head = (const uint8_t*)find_key((const char*)head, "TEXCOORD_0");
+	psyqo::Kernel::assert(head != nullptr, "TEXCOORD_0 attribute not found in glTF JSON chunk");
+	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read TEXCOORD_0 attribute index");
+	attr_texcoord_0 = static_cast<uint8_t>(temp_val);
+
+	// parse INDICES attribute
+	head = (const uint8_t*)find_key((const char*)head, "indices");
+	psyqo::Kernel::assert(head != nullptr, "INDICES attribute not found in glTF JSON chunk");
+	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read INDICES attribute index");
+	attr_indices = static_cast<uint8_t>(temp_val);
+
+	printf("Parsed attributes: POSITION=%u, NORMAL=%u, TEXCOORD_0=%u, INDICES=%u\n",
+		attr_position, attr_normal, attr_texcoord_0, attr_indices);
 
 	return true;
 }
@@ -216,6 +248,8 @@ const char* skip_whitespace(const char *p) {
 bool read_long(const char *&p, int32_t& out) {
 	const char* start = p;
 	bool negative = false;
+
+	while(*p == ' ' || *p == '\t' || *p == '"' || *p == ':') ++p; // skip whitespace and quotes and colons
 
 	if (*p == '-') {
 		negative = true;
