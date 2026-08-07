@@ -32,13 +32,11 @@ class CD {
 			Ready,
 			Error
 		};
+		State m_state = State::Idle;
 
 		alignas(4) uint8_t m_file_buffer[MAX_FILE_SIZE];
-
-		State m_state = State::Idle;
 		psyqo::CDRomDevice m_cdrom;
 		psyqo::ISO9660Parser m_parser;
-
 		eastl::string m_filename;
 		psyqo::ISO9660Parser::DirEntry m_entry;
 

@@ -88,6 +88,8 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	printf("Parsed attributes: POSITION=%u, NORMAL=%u, TEXCOORD_0=%u, INDICES=%u\n",
 		attr_position, attr_normal, attr_texcoord_0, attr_indices);
 
+		
+
 	return true;
 }
 

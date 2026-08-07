@@ -24,8 +24,10 @@ typedef struct Object {
 	psyqo::Vec3 scale;
 } Object;
 
+// main parser
 bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh);
 
+// helpers
 const char* find_key(const char* json, const char* key);
 bool parse_fixed(const char *&p, psyqo::FixedPoint<> &out);
 const char* skip_value(const char* p);

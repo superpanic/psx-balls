@@ -129,14 +129,14 @@ void CubeScene::frame() {
 
 	m_cdrom.advance();   // Drive the state machine
 
-    if (!m_cdrom.isReady()) {
-        // still loading → just clear screen
-        int parity = gpu().getParity();
-        auto &clear = m_clear[parity];
-        gpu().getNextClear(clear.primitive, c_bg);
-        gpu().chain(clear);
-        return;
-    }
+	if (!m_cdrom.isReady()) {
+		// still loading → just clear screen
+		int parity = gpu().getParity();
+		auto &clear = m_clear[parity];
+		gpu().getNextClear(clear.primitive, c_bg);
+		gpu().chain(clear);
+		return;
+	}
 
 	if (!m_cubemesh.isValid()) {
 		// load the cube mesh from the GLB file

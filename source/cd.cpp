@@ -3,20 +3,23 @@
 #include "psyqo/xprintf.h"
 
 void CD::read(eastl::string filename) {
-    psyqo::Kernel::assert(filename.size() <= MAX_FILENAME_LENGTH, "Filename too long");
+    psyqo::Kernel::assert(filename.size() <= MAX_FILENAME_LENGTH, "Filename too long!");
 	m_filename = filename;
 
 	if(m_state == State::Idle) {
 		m_cdrom.prepare();
 		m_cdrom.reset([this](bool s) { onReset(s); });
 		m_state = State::Resetting;
-	} else {
-		advance();
 	}
 }
 
 bool CD::advance() {
 	switch (m_state) {
+		case State::Idle:
+			printf("Use read(filename) to start reading a file.\n");
+			break;
+		case State::Resetting:
+			break;
 		case State::InitializingParser:
 			break;
 		case State::FindingFile: {
@@ -50,7 +53,6 @@ void CD::onReset(bool success) {
 			m_state = State::InitializingParser;
 		} else {
 			m_state = State::FindingFile;
-			advance();
 		}
 	} else {
 		printf("ERROR: CD-ROM reset failed\n");
@@ -72,7 +74,6 @@ void CD::onFileFound(bool success) {
 	if(success && m_entry.type == psyqo::ISO9660Parser::DirEntry::FILE) {
 		printf("SUCCESS: File found: LBA=%d, size=%d, name=%s\n", m_entry.LBA, m_entry.size, m_entry.name.c_str());
 		m_state = State::LoadingFile;
-		advance();
 	} else {
 		printf("ERROR: File %s not found or invalid\n", m_filename.c_str());
 		m_state = State::Error;
