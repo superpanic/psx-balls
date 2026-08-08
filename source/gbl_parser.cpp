@@ -6,12 +6,17 @@
 #include "psyqo/fixed-point.hh"
 
 bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
+	const uint8_t *head = data;
+	const uint8_t *meshes_ptr = nullptr;
+	const uint8_t *accessors_ptr = nullptr;
+	const uint8_t *bufferViews_ptr = nullptr;
+	const uint8_t *buffers_ptr = nullptr;
+	const uint8_t *bin_ptr = nullptr;
+	const uint8_t *end = data + size;
 
 	if(size < sizeof(uint32_t)) {
 		return false; // Not enough data for magic number
 	}
-
-	const uint8_t *head = data;
 
 	// big endian 4 byte magic number copy
 	uint32_t magic = READ_BE32(head);
@@ -38,54 +43,81 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 		printf("GLTF length: %u\n", length);
 	}
 
-	uint32_t chunkLength = READ_LE32(head); head += 4;
-	uint32_t chunkType = READ_LE32(head); head += 4;
-	if(chunkType != 0x4E4F534A) { // "JSON"
-		printf("Expected JSON chunk, got type: 0x%08X\n", chunkType);
+	uint32_t chunk_length = READ_LE32(head); head += 4;
+	uint32_t chunk_type = READ_LE32(head); head += 4;
+	if(chunk_type != 0x4E4F534A) { // "JSON"
+		printf("Expected JSON chunk, got type: 0x%08X\n", chunk_type);
 		return false; // not a JSON chunk
 	} else {
-		printf("JSON chunk length: %u\n", chunkLength);
+		printf("JSON chunk length: %u\n", chunk_length);
 	}
 
-	// parse meshes array
+	// find JSON keys for meshes, accessors, bufferViews, buffers
 	head = (const uint8_t*)find_key((const char*)head, "meshes");
 	psyqo::Kernel::assert(head != nullptr, "meshes ARRAY not found in glTF JSON chunk");
+	meshes_ptr = head;
+
+	head = (const uint8_t*)find_key((const char*)head, "accessors");
+	psyqo::Kernel::assert(head != nullptr, "accessors ARRAY not found in glTF JSON chunk");
+	accessors_ptr = head;
+
+	head = (const uint8_t*)find_key((const char*)head, "bufferViews");
+	psyqo::Kernel::assert(head != nullptr, "bufferViews ARRAY not found in glTF JSON chunk");
+	bufferViews_ptr = head;
+
+	head = (const uint8_t*)find_key((const char*)head, "buffers");
+	psyqo::Kernel::assert(head != nullptr, "buffers ARRAY not found in glTF JSON chunk");
+	buffers_ptr = head;
+
+	// get binary chunk pointer
+	head = data + GLTF_JSON_OFFSET + chunk_length; // binary chunk starts after the JSON chunk
+	uint32_t bin_chunk_length = READ_LE32(head); head += 4;
+	uint32_t bin_chunk_type = READ_LE32(head); head += 4;
+	if(bin_chunk_type != BIN_MAGIC) {
+		printf("Expected BIN chunk, got type: 0x%08X\n", bin_chunk_type);
+		return false; // not a BIN chunk
+	} else {
+		printf("BIN chunk length: %u\n", bin_chunk_length);
+		bin_ptr = head;
+	}
+
+	// jump back to meshes array to parse the first mesh
+	head = meshes_ptr;
+
+	// mesh name
 	head = (const uint8_t*)find_key((const char*)head, "name");
 	psyqo::Kernel::assert(head != nullptr, "mesh NAME not found in glTF JSON chunk");
 	read_string((const char*&)head, mesh->name);
 	printf("mesh name: %s\n", mesh->name.c_str());
 
-	uint8_t attr_position;
-	uint8_t attr_normal;
-	uint8_t attr_texcoord_0;
-	uint8_t attr_indices;
+	short attr_position, attr_normal, attr_texcoord_0, attr_indices;
 	int32_t temp_val = 0;
 
 	// parse POSITION attribute
 	head = (const uint8_t*)find_key((const char*)head, "POSITION");
 	psyqo::Kernel::assert(head != nullptr, "POSITION attribute not found in glTF JSON chunk");
 	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read POSITION attribute index");
-	attr_position = static_cast<uint8_t>(temp_val);
+	attr_position = static_cast<short>(temp_val);
 
 	// parse NORMAL attribute
 	head = (const uint8_t*)find_key((const char*)head, "NORMAL");
 	psyqo::Kernel::assert(head != nullptr, "NORMAL attribute not found in glTF JSON chunk");
 	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read NORMAL attribute index");
-	attr_normal = static_cast<uint8_t>(temp_val);
+	attr_normal = static_cast<short>(temp_val);
 
 	// parse TEXCOORD_0 attribute
 	head = (const uint8_t*)find_key((const char*)head, "TEXCOORD_0");
 	psyqo::Kernel::assert(head != nullptr, "TEXCOORD_0 attribute not found in glTF JSON chunk");
 	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read TEXCOORD_0 attribute index");
-	attr_texcoord_0 = static_cast<uint8_t>(temp_val);
+	attr_texcoord_0 = static_cast<short>(temp_val);
 
 	// parse INDICES attribute
 	head = (const uint8_t*)find_key((const char*)head, "indices");
 	psyqo::Kernel::assert(head != nullptr, "INDICES attribute not found in glTF JSON chunk");
 	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read INDICES attribute index");
-	attr_indices = static_cast<uint8_t>(temp_val);
+	attr_indices = static_cast<short>(temp_val);
 
-	printf("Parsed attributes: POSITION=%u, NORMAL=%u, TEXCOORD_0=%u, INDICES=%u\n",
+	printf("Parsed attributes: POSITION=%d, NORMAL=%d, TEXCOORD_0=%d, INDICES=%d\n",
 		attr_position, attr_normal, attr_texcoord_0, attr_indices);
 
 		
@@ -186,7 +218,7 @@ bool parse_fixed(const char *&p, psyqo::FixedPoint<> &out) {
 void read_string(const char *&p, eastl::string &out) {
 
 	if (!p || *p != '"') return; // Not a string
-	++p; // skip opening quote
+	++p; // skip title quote
 	if(*p == ':') {
 		++p; // skip colon if present
 		if(*p == '"') ++p; // skip opening quote if present

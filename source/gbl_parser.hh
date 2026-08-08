@@ -4,6 +4,8 @@
 #include "EASTL/string.h"
 
 #define GLTF_MAGIC 0x676C5446  // "glTF"
+#define BIN_MAGIC 0x004E4942  // "BIN\0"
+#define GLTF_JSON_OFFSET 20
 
 #define SMALL_MODEL_MAX_VERTICES (256)
 #define SMALL_MODEL_MAX_INDICES (256)
