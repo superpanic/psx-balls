@@ -43,34 +43,37 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 		printf("GLTF length: %u\n", length);
 	}
 
-	uint32_t chunk_length = READ_LE32(head); head += 4;
-	uint32_t chunk_type = READ_LE32(head); head += 4;
-	if(chunk_type != 0x4E4F534A) { // "JSON"
-		printf("Expected JSON chunk, got type: 0x%08X\n", chunk_type);
+	uint32_t json_chunk_length = READ_LE32(head); head += 4;
+	uint32_t json_chunk_type = READ_LE32(head); head += 4;
+	if(json_chunk_type != 0x4E4F534A) { // "JSON"
+		printf("Expected JSON chunk, got type: 0x%08X\n", json_chunk_type);
 		return false; // not a JSON chunk
 	} else {
-		printf("JSON chunk length: %u\n", chunk_length);
+		printf("JSON chunk length: %u\n", json_chunk_length);
 	}
 
-	// find JSON keys for meshes, accessors, bufferViews, buffers
+	// get  meshes  array JSON pointer
 	head = (const uint8_t*)find_key((const char*)head, "meshes");
 	psyqo::Kernel::assert(head != nullptr, "meshes ARRAY not found in glTF JSON chunk");
 	meshes_ptr = head;
 
+	// get  accessors  array JSON pointer
 	head = (const uint8_t*)find_key((const char*)head, "accessors");
 	psyqo::Kernel::assert(head != nullptr, "accessors ARRAY not found in glTF JSON chunk");
 	accessors_ptr = head;
 
+	// get  bufferViews  array JSON pointer
 	head = (const uint8_t*)find_key((const char*)head, "bufferViews");
 	psyqo::Kernel::assert(head != nullptr, "bufferViews ARRAY not found in glTF JSON chunk");
 	bufferViews_ptr = head;
 
+	// get  buffers  array JSON pointer
 	head = (const uint8_t*)find_key((const char*)head, "buffers");
 	psyqo::Kernel::assert(head != nullptr, "buffers ARRAY not found in glTF JSON chunk");
 	buffers_ptr = head;
 
-	// get binary chunk pointer
-	head = data + GLTF_JSON_OFFSET + chunk_length; // binary chunk starts after the JSON chunk
+	// get  BINARY  chunk pointer
+	head = data + GLTF_JSON_OFFSET + json_chunk_length; // binary chunk starts after the JSON chunk
 	uint32_t bin_chunk_length = READ_LE32(head); head += 4;
 	uint32_t bin_chunk_type = READ_LE32(head); head += 4;
 	if(bin_chunk_type != BIN_MAGIC) {
@@ -90,37 +93,79 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	read_string((const char*&)head, mesh->name);
 	printf("mesh name: %s\n", mesh->name.c_str());
 
-	short attr_position, attr_normal, attr_texcoord_0, attr_indices;
-	int32_t temp_val = 0;
+	
+	Accessor accessor = {};
+	BufferView bufferView = {};
+	
+	// jump to accessors array to parse the first accessor
+	head = accessors_ptr;
+	int32_t t;
+	
+	// read bufferView
+	head = (const uint8_t*)find_key((const char*)head, "bufferView");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read bufferView in glTF JSON chunk");
+	accessor.bufferView = (uint32_t)t;
 
-	// parse POSITION attribute
-	head = (const uint8_t*)find_key((const char*)head, "POSITION");
-	psyqo::Kernel::assert(head != nullptr, "POSITION attribute not found in glTF JSON chunk");
-	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read POSITION attribute index");
-	attr_position = static_cast<short>(temp_val);
+	// read componentType
+	head = (const uint8_t*)find_key((const char*)head, "componentType");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read componentType in glTF JSON chunk");
+	accessor.componentType = (uint32_t)t;
+	psyqo::Kernel::assert(isValidComponentType(accessor.componentType), "invalid componentType in glTF JSON chunk");
 
-	// parse NORMAL attribute
-	head = (const uint8_t*)find_key((const char*)head, "NORMAL");
-	psyqo::Kernel::assert(head != nullptr, "NORMAL attribute not found in glTF JSON chunk");
-	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read NORMAL attribute index");
-	attr_normal = static_cast<short>(temp_val);
+	// read count
+	head = (const uint8_t*)find_key((const char*)head, "count");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read count in glTF JSON chunk");
+	accessor.count = (uint32_t)t;
 
-	// parse TEXCOORD_0 attribute
-	head = (const uint8_t*)find_key((const char*)head, "TEXCOORD_0");
-	psyqo::Kernel::assert(head != nullptr, "TEXCOORD_0 attribute not found in glTF JSON chunk");
-	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read TEXCOORD_0 attribute index");
-	attr_texcoord_0 = static_cast<short>(temp_val);
+	// read type
+	head = (const uint8_t*)find_key((const char*)head, "type");
+	read_string((const char*&)head, accessor.type);
+	psyqo::Kernel::assert(accessor.type.length() > 0, "Failed to read type in glTF JSON chunk");
 
-	// parse INDICES attribute
-	head = (const uint8_t*)find_key((const char*)head, "indices");
-	psyqo::Kernel::assert(head != nullptr, "INDICES attribute not found in glTF JSON chunk");
-	psyqo::Kernel::assert(read_long((const char*&)head, temp_val), "Failed to read INDICES attribute index");
-	attr_indices = static_cast<short>(temp_val);
+	printf("accessor: bufferView=%u, componentType=%u, count=%u, type=%s\n", accessor.bufferView, accessor.componentType, accessor.count, accessor.type.c_str());
 
-	printf("Parsed attributes: POSITION=%d, NORMAL=%d, TEXCOORD_0=%d, INDICES=%d\n",
-		attr_position, attr_normal, attr_texcoord_0, attr_indices);
+	// jump to bufferViews array to parse the first bufferView
+	head = bufferViews_ptr;
 
-		
+	// read buffer
+	head = (const uint8_t*)find_key((const char*)head, "buffer");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read buffer in glTF JSON chunk");
+	bufferView.buffer = (uint32_t)t;
+
+	// read byteOffset
+	head = (const uint8_t*)find_key((const char*)head, "byteOffset");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read byteOffset in glTF JSON chunk");
+	bufferView.byteOffset = (uint32_t)t;
+
+	// read byteLength
+	head = (const uint8_t*)find_key((const char*)head, "byteLength");
+	psyqo::Kernel::assert(read_long(head, t), "Failed to read byteLength in glTF JSON chunk");
+	bufferView.byteLength = (uint32_t)t;
+
+	// calculate byteStride
+	bufferView.byteStride = bufferView.byteLength / accessor.count;
+
+	printf("bufferView: buffer=%u, byteOffset=%u, byteLength=%u, byteStride=%u\n", bufferView.buffer, bufferView.byteOffset, bufferView.byteLength, bufferView.byteStride);
+
+	head = bin_ptr + bufferView.byteOffset;
+	psyqo::Kernel::assert(head + bufferView.byteLength <= end, "BufferView exceeds binary chunk size");
+
+	// read vertices
+	for(int i=0; i<accessor.count && i<SMALL_MODEL_MAX_VERTICES; i++) {
+		psyqo::Vec3 &v = mesh->vertices[i];
+		if (accessor.componentType == FLOAT && accessor.type == "VEC3") {
+        	uint32_t bx = READ_LE32(head); head += 4;
+        	uint32_t by = READ_LE32(head); head += 4;
+        	uint32_t bz = READ_LE32(head); head += 4;
+			v.x = psyqo::FixedPoint<>(float32_bits_to_fixed12(bx), psyqo::FixedPoint<>::RAW);
+			v.y = psyqo::FixedPoint<>(float32_bits_to_fixed12(by), psyqo::FixedPoint<>::RAW);
+			v.z = psyqo::FixedPoint<>(float32_bits_to_fixed12(bz), psyqo::FixedPoint<>::RAW);
+			printf("vertex[%d]: x=%d, y=%d, z=%d\n", i, v.x.raw(), v.y.raw(), v.z.raw());
+		} else {
+			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for vertices");
+		}
+	}
+	mesh->num_vertices = accessor.count;
 
 	return true;
 }
@@ -143,80 +188,49 @@ const char *find_key(const char *json, const char *key) {
 	return found;
 }
 
-/**
- * parse a decimal number from a string into a FixedPoint.
- * supports: 123, -123, 123.456, -0.5, .75, etc.
- * stops at the first non-numeric character.
- *
- * returns true on success, false on empty / invalid input.
- * the pointer `p` is advanced past the number.
- */
-bool parse_fixed(const char *&p, psyqo::FixedPoint<> &out) {
-	if (!p || !*p) return false;
 
-	// skip leading whitespace
-	while (*p == ' ' || *p == '\t') ++p;
+// Convert little-endian IEEE-754 binary32 bits → FixedPoint raw value (scale 4096)
+static int32_t float32_bits_to_fixed12(uint32_t bits) {
+	const uint32_t sign     = bits >> 31;
+	const int32_t  exponent = int32_t((bits >> 23) & 0xFF) - 127; // unbiased
+	uint32_t       mantissa = (bits & 0x7FFFFF);
 
-	// handle sign
-	bool negative = false;
-	if (*p == '-') {
-		negative = true;
-		++p;
-	} else if (*p == '+') {
-		++p;
+	// Zero / denormal → treat as 0 (good enough for vertex data)
+	if (exponent == -127) {
+		return 0;
 	}
 
-	// read integer part
-	int32_t integer = 0;
-	bool hasDigits = false;
-	while (*p >= '0' && *p <= '9') {
-		hasDigits = true;
-		integer = integer * 10 + (*p - '0');
-		++p;
+	// Inf / NaN → clamp (should never appear in a well-formed glTF)
+	if (exponent == 128) {
+		return sign ? 0x80000000 : 0x7FFFFFFF;
 	}
 
-	// read fractional part
-	int32_t fraction = 0;
-	int32_t divisor = 1;
+	// Add the implicit leading 1
+	mantissa |= 0x800000;
 
-	if (*p == '.') {
-		++p;
-		// We only need enough precision for 12 fractional bits (~3-4 decimal digits)
-		// Reading more is fine; we'll scale it down later.
-		int digits = 0;
-		while (*p >= '0' && *p <= '9' && digits < 6) { // limit to avoid overflow
-			hasDigits = true;
-			fraction = fraction * 10 + (*p - '0');
-			divisor *= 10;
-			++p;
-			++digits;
+	// We want: value * 4096 = mantissa * 2^(exponent-23) * 2^12
+	// → shift = exponent - 23 + 12 = exponent - 11
+	const int32_t shift = exponent - 11;
+
+	int32_t value;
+	if (shift >= 0) {
+		// Make sure we don't shift into oblivion (vertex data is normally small)
+		if (shift > 8) {          // safety for huge numbers
+			value = 0x7FFFFFFF;
+		} else {
+			value = int32_t(mantissa << shift);
 		}
-		// Skip any remaining fractional digits we don't care about
-		while (*p >= '0' && *p <= '9') ++p;
+	} else {
+		value = int32_t(mantissa >> -shift);
+		// Optional: round to nearest
+		// if ((mantissa >> (-shift-1)) & 1) value += 1;
 	}
 
-	// no digits found at all
-	if (!hasDigits) return false;
-
-	// convert fractional part to fixed-point scale (4096)
-	// fraction / divisor * 4096
-	int32_t fixedFrac = 0;
-	if (divisor > 1) {
-		// 64-bit intermediate to stay safe
-		fixedFrac = static_cast<int32_t>(
-			(static_cast<int64_t>(fraction) * psyqo::FixedPoint<>::scale) / divisor
-		);
-	}
-
-	int32_t raw = integer * psyqo::FixedPoint<>::scale + fixedFrac;
-	if (negative) raw = -raw;
-
-	out = psyqo::FixedPoint<>(raw, psyqo::FixedPoint<>::RAW);
-	return true;
+	return sign ? -value : value;
 }
 
+// reads a string from the JSON, advancing the pointer past it. The string is expected to be enclosed in double quotes.
 void read_string(const char *&p, eastl::string &out) {
-
 	if (!p || *p != '"') return; // Not a string
 	++p; // skip title quote
 	if(*p == ':') {
@@ -279,8 +293,8 @@ const char* skip_whitespace(const char *p) {
 }
 
 // moves the pointer forward and returns true if a number was read, false otherwise
-bool read_long(const char *&p, int32_t& out) {
-	const char* start = p;
+bool read_long(const uint8_t *&p, int32_t &out) {
+	const uint8_t* start = p;
 	bool negative = false;
 
 	while(*p == ' ' || *p == '\t' || *p == '"' || *p == ':') ++p; // skip whitespace and quotes and colons
@@ -305,4 +319,25 @@ bool read_long(const char *&p, int32_t& out) {
 
 	out = negative ? -value : value;
 	return true;
+}
+
+size_t get_accessor_size_from_string(const char *type) {
+	static const size_t str_size = 8;
+	if (stringncompare(type, "SCALAR", str_size) == 0) return 1;
+	if (stringncompare(type, "VEC2", str_size) == 0) return 2;
+	if (stringncompare(type, "VEC3", str_size) == 0) return 3;
+	if (stringncompare(type, "VEC4", str_size) == 0) return 4;
+	if (stringncompare(type, "MAT2", str_size) == 0) return 4;
+	if (stringncompare(type, "MAT3", str_size) == 0) return 9;
+	if (stringncompare(type, "MAT4", str_size) == 0) return 16;
+	return 0; // unknown type
+}
+
+bool isValidComponentType(uint32_t componentType) {
+	for (uint32_t type : componentTypes) {
+		if (type == componentType) {
+			return true;
+		}
+	}
+	return false;
 }
