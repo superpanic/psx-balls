@@ -5,6 +5,7 @@
 #include "str_tools.hh"
 #include "psyqo/fixed-point.hh"
 
+
 bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	const uint8_t *head = data;
 	const uint8_t *meshes_ptr = nullptr;
@@ -13,6 +14,9 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	const uint8_t *buffers_ptr = nullptr;
 	const uint8_t *bin_ptr = nullptr;
 	const uint8_t *end = data + size;
+
+	Accessor accessors[MAX_BUFFERVIEWS];
+	BufferView bufferViews[MAX_BUFFERVIEWS];
 
 	if(size < sizeof(uint32_t)) {
 		return false; // Not enough data for magic number
@@ -93,67 +97,79 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	read_string((const char*&)head, mesh->name);
 	printf("mesh name: %s\n", mesh->name.c_str());
 
-	
-	Accessor accessor = {};
-	BufferView bufferView = {};
-	
 	// jump to accessors array to parse the first accessor
 	head = accessors_ptr;
 	int32_t t;
-	
-	// read bufferView
-	head = (const uint8_t*)find_key((const char*)head, "bufferView");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read bufferView in glTF JSON chunk");
-	accessor.bufferView = (uint32_t)t;
+	short bufferView_count = 0;
 
-	// read componentType
-	head = (const uint8_t*)find_key((const char*)head, "componentType");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read componentType in glTF JSON chunk");
-	accessor.componentType = (uint32_t)t;
-	psyqo::Kernel::assert(isValidComponentType(accessor.componentType), "invalid componentType in glTF JSON chunk");
+	for(int i=0; i<MAX_BUFFERVIEWS; i++) {
+		accessors[i] = {};
+		
+		// read bufferView
+		head = (const uint8_t*)find_key((const char*)head, "bufferView");
+		if(!read_long(head, t)) {
+			psyqo::Kernel::assert(i >= 1, "Failed to find any bufferViews in glTF JSON chunk");
+			break;
+		}
+		accessors[i].bufferView = (uint32_t)t;
 
-	// read count
-	head = (const uint8_t*)find_key((const char*)head, "count");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read count in glTF JSON chunk");
-	accessor.count = (uint32_t)t;
+		// read componentType
+		head = (const uint8_t*)find_key((const char*)head, "componentType");
+		psyqo::Kernel::assert(read_long(head, t), "Failed to read componentType in glTF JSON chunk");
+		accessors[i].componentType = (uint32_t)t;
+		psyqo::Kernel::assert(isValidComponentType(accessors[i].componentType), "invalid componentType in glTF JSON chunk");
 
-	// read type
-	head = (const uint8_t*)find_key((const char*)head, "type");
-	read_string((const char*&)head, accessor.type);
-	psyqo::Kernel::assert(accessor.type.length() > 0, "Failed to read type in glTF JSON chunk");
+		// read count
+		head = (const uint8_t*)find_key((const char*)head, "count");
+		psyqo::Kernel::assert(read_long(head, t), "Failed to read count in glTF JSON chunk");
+		accessors[i].count = (uint32_t)t;
 
-	printf("accessor: bufferView=%u, componentType=%u, count=%u, type=%s\n", accessor.bufferView, accessor.componentType, accessor.count, accessor.type.c_str());
+		// read type
+		head = (const uint8_t*)find_key((const char*)head, "type");
+		read_string((const char*&)head, accessors[i].type);
+		psyqo::Kernel::assert(accessors[i].type.length() > 0, "Failed to read type in glTF JSON chunk");
 
+		bufferView_count++;
+		printf("accessor[%d]: bufferView=%u, componentType=%u, count=%u, type=%s\n", i, accessors[i].bufferView, accessors[i].componentType, accessors[i].count, accessors[i].type.c_str());
+	}
+		
 	// jump to bufferViews array to parse the first bufferView
 	head = bufferViews_ptr;
+	
+	for(int i=0; i<bufferView_count; i++) {
+		bufferViews[i] = {};
+	
+		// read buffer
+		head = (const uint8_t*)find_key((const char*)head, "buffer");
+		if(!read_long(head, t)) {
+			psyqo::Kernel::assert(i >= 1, "Failed to find any bufferViews in glTF JSON chunk");
+			break;
+		}
+		bufferViews[i].buffer = (uint32_t)t;
 
-	// read buffer
-	head = (const uint8_t*)find_key((const char*)head, "buffer");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read buffer in glTF JSON chunk");
-	bufferView.buffer = (uint32_t)t;
+		// read byteLength
+		head = (const uint8_t*)find_key((const char*)head, "byteLength");
+		psyqo::Kernel::assert(read_long(head, t), "Failed to read byteLength in glTF JSON chunk");
+		bufferViews[i].byteLength = (uint32_t)t;
 
-	// read byteOffset
-	head = (const uint8_t*)find_key((const char*)head, "byteOffset");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read byteOffset in glTF JSON chunk");
-	bufferView.byteOffset = (uint32_t)t;
+		// read byteOffset
+		head = (const uint8_t*)find_key((const char*)head, "byteOffset");
+		psyqo::Kernel::assert(read_long(head, t), "Failed to read byteOffset in glTF JSON chunk");
+		bufferViews[i].byteOffset = (uint32_t)t;
 
-	// read byteLength
-	head = (const uint8_t*)find_key((const char*)head, "byteLength");
-	psyqo::Kernel::assert(read_long(head, t), "Failed to read byteLength in glTF JSON chunk");
-	bufferView.byteLength = (uint32_t)t;
+		// calculate byteStride
+		bufferViews[i].byteStride = bufferViews[i].byteLength / accessors[i].count;
 
-	// calculate byteStride
-	bufferView.byteStride = bufferView.byteLength / accessor.count;
+		printf("bufferView[%d]: buffer=%u, byteOffset=%u, byteLength=%u, byteStride=%u\n", i, bufferViews[i].buffer, bufferViews[i].byteOffset, bufferViews[i].byteLength, bufferViews[i].byteStride);
+	}
 
-	printf("bufferView: buffer=%u, byteOffset=%u, byteLength=%u, byteStride=%u\n", bufferView.buffer, bufferView.byteOffset, bufferView.byteLength, bufferView.byteStride);
-
-	head = bin_ptr + bufferView.byteOffset;
-	psyqo::Kernel::assert(head + bufferView.byteLength <= end, "BufferView exceeds binary chunk size");
+	head = bin_ptr + bufferViews[0].byteOffset;
+	psyqo::Kernel::assert(head + bufferViews[0].byteLength <= end, "BufferView exceeds binary chunk size");
 
 	// read vertices
-	for(int i=0; i<accessor.count && i<SMALL_MODEL_MAX_VERTICES; i++) {
+	for(int i=0; i<accessors[0].count && i<SMALL_MODEL_MAX_VERTICES; i++) {
 		psyqo::Vec3 &v = mesh->vertices[i];
-		if (accessor.componentType == FLOAT && accessor.type == "VEC3") {
+		if (accessors[0].componentType == FLOAT && accessors[0].type == "VEC3") {
         	uint32_t bx = READ_LE32(head); head += 4;
         	uint32_t by = READ_LE32(head); head += 4;
         	uint32_t bz = READ_LE32(head); head += 4;
@@ -165,7 +181,7 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for vertices");
 		}
 	}
-	mesh->num_vertices = accessor.count;
+	mesh->num_vertices = accessors[0].count;
 
 	return true;
 }

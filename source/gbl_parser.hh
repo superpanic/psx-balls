@@ -10,6 +10,7 @@
 
 #define SMALL_MODEL_MAX_VERTICES (256)
 #define SMALL_MODEL_MAX_INDICES (256)
+#define MAX_BUFFERVIEWS (8)
 
 #define SCALAR_SIZE  (1)
 #define VEC2_SIZE    (2)
@@ -59,6 +60,7 @@ typedef struct Accessor {
 	uint32_t count;
 	eastl::string type;
 } Accessor;
+
 
 typedef struct BufferView {
 	uint32_t buffer;
