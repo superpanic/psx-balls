@@ -183,6 +183,20 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	}
 	mesh->num_vertices = accessors[0].count;
 
+	// read indices
+	head = bin_ptr + bufferViews[3].byteOffset;
+	psyqo::Kernel::assert(head + bufferViews[3].byteLength <= end, "BufferView exceeds binary chunk size");
+	for(int i=0; i<accessors[3].count && i<SMALL_MODEL_MAX_INDICES; i++) {
+		if (accessors[3].componentType == UNSIGNED_SHORT && accessors[3].type == "SCALAR") {
+			uint16_t index = READ_LE16(head); head += 2;
+			mesh->indices[i] = index;
+			printf("index[%d]: %u\n", i, index);
+		} else {
+			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for indices");
+		}
+	}
+	mesh->num_indices = accessors[3].count;
+
 	return true;
 }
 

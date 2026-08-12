@@ -33,6 +33,12 @@ typedef struct {
 	psyqo::Color color;
 } Face;
 
+// a polygon is a triangle, which is the only primitive the GTE can handle
+typedef struct {
+	uint8_t vertices[3];
+	psyqo::Color color;
+} Polygon;
+
 static constexpr psyqo::Matrix33 identity = {{
 	{1.0_fp, 0.0_fp, 0.0_fp},
 	{0.0_fp, 1.0_fp, 0.0_fp},
@@ -63,9 +69,10 @@ class CubeScene final : public psyqo::Scene {
 		// Since we're using an ordering table, we need to sort fill commands as well,
 		// otherwise they'll draw over our beautiful cube.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
+		// define an array of 6 quads, one for each face of the cube
+		eastl::array< psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad>, 6 > m_quads;
 
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad>, 6> m_quads;
-
+		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
 
 		static constexpr psyqo::Vec3 c_cubeVertices[NUM_CUBE_VERTICES] = {
