@@ -7,6 +7,7 @@
 #include "psyqo/gte-registers.hh"
 #include "psyqo/primitives/common.hh"
 #include "psyqo/primitives/quads.hh"
+#include "psyqo/primitives/triangles.hh"
 #include "psyqo/scene.hh"
 #include "psyqo/soft-math.hh"
 #include "psyqo/trigonometry.hh"
@@ -32,12 +33,6 @@ typedef struct {
 	uint8_t vertices[4];
 	psyqo::Color color;
 } Face;
-
-// a polygon is a triangle, which is the only primitive the GTE can handle
-typedef struct {
-	uint8_t vertices[3];
-	psyqo::Color color;
-} Polygon;
 
 static constexpr psyqo::Matrix33 identity = {{
 	{1.0_fp, 0.0_fp, 0.0_fp},
@@ -70,8 +65,8 @@ class CubeScene final : public psyqo::Scene {
 		// otherwise they'll draw over our beautiful cube.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of 6 quads, one for each face of the cube
-		eastl::array< psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad>, 6 > m_quads;
-
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad>, 6> m_quads;
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 12> m_triangles;
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
 
@@ -90,7 +85,8 @@ class CubeScene final : public psyqo::Scene {
 
 	private:
 		CD m_cdrom;
-		Mesh m_cubemesh;		
+		Mesh m_cubemesh;
+		psyqo::Color m_color;
 };
 
 static Cube cube;
@@ -128,10 +124,109 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 
-	m_cdrom.read("CUBE.GLB;1");
+	m_cdrom.read("RECT.GLB;1");
+	m_color = {.r = 255, .g = 0, .b = 0};
+}
+
+void CubeScene::frame() {
+
+	m_cdrom.advance();   // Drive the state machine
+
+	if (!m_cdrom.isReady()) {
+		// still loading → just clear screen
+		int parity = gpu().getParity();
+		auto &clear = m_clear[parity];
+		gpu().getNextClear(clear.primitive, c_bg);
+		gpu().chain(clear);
+		return;
+	}
+
+	if (!m_cubemesh.isValid()) {
+		// load the cube mesh from the GLB file
+		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_cubemesh);
+		psyqo::Kernel::assert(m_cubemesh.isValid(), "Failed to load Cube mesh from GLB file");
+	}
+
+	// holding the projected 2D results of the 3D vertices, 
+	// which will be used to draw a polygon on screen
+	eastl::array<psyqo::Vertex, 3> projected;
+
+	// get which frame we're currently drawing
+	int parity = gpu().getParity();
+	auto &ot = m_ots[parity];
+	auto &clear = m_clear[parity];
+
+	// chain the fill command accordingly to clear the buffer
+	gpu().getNextClear(clear.primitive, c_bg);
+	gpu().chain(clear);
+
+	// distance
+	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
+
+	// 1. Spinning rotations (X then Y)
+	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
+
+	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::Y, cube.m_trig);
+
+	psyqo::SoftMath::multiplyMatrix33(transform, rotY, &transform);
+
+	// 2. Optional Z rotation (currently identity)
+	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(0, psyqo::SoftMath::Axis::Z, cube.m_trig);
+	psyqo::SoftMath::multiplyMatrix33(transform, rotZ, &transform);
+
+	// 3. Force the plane to face the camera (90° around X)
+	//    Apply this *after* the spinning rotations so the plane stays facing us while it spins.
+	auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, cube.m_trig);
+
+	psyqo::SoftMath::multiplyMatrix33(faceCamera, transform, &transform);
+
+	// 4. Write the final matrix once
+	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
+
+
+	for(int i=0, t=0; i<m_cubemesh.num_indices; i+=3, t++) {
+		// load 3 vertices into the GTE.
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_cubemesh.vertices[m_cubemesh.indices[i+2]]); // count backwards because the GTE expects them in reverse order
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_cubemesh.vertices[m_cubemesh.indices[i+1]]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_cubemesh.vertices[m_cubemesh.indices[i+0]]);
+
+		// perform rtpt (perspective transformation) to the three verticies.
+		psyqo::GTE::Kernels::rtpt();
+
+		// nclip determines the winding of the vertices, used to check which direction the face is pointing. Clockwise winding means the face is oriented towards us.
+		psyqo::GTE::Kernels::nclip();
+
+		// read the result of nclip and skip rendering this face if it's not facing us
+		int32_t mac0 = 0;
+		psyqo::GTE::read<psyqo::GTE::Register::MAC0>(reinterpret_cast<uint32_t*>(&mac0));
+//if(mac0 <= 0) continue;
+
+		psyqo::GTE::Kernels::avsz3();
+		int32_t zIndex = 0;
+		psyqo::GTE::read<psyqo::GTE::Register::OTZ>(reinterpret_cast<uint32_t*>(&zIndex));
+		//if(zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE) continue;
+
+		psyqo::GTE::read<psyqo::GTE::Register::SXY0>(&projected[0].packed);
+		psyqo::GTE::read<psyqo::GTE::Register::SXY1>(&projected[1].packed);
+		psyqo::GTE::read<psyqo::GTE::Register::SXY2>(&projected[2].packed);
+
+		auto &tri = m_triangles[t];
+		tri.primitive.setPointA(projected[0]);
+		tri.primitive.setPointB(projected[1]);
+		tri.primitive.setPointC(projected[2]);
+		tri.primitive.setColor(m_color);
+		tri.primitive.setOpaque();
+
+		ot.insert(tri, zIndex);
+
+	}
+
+	gpu().chain(ot);
+	//m_rot += psyqo::Angle(0.01);
 
 }
 
+/*
 void CubeScene::frame() {
 
 	m_cdrom.advance();   // Drive the state machine
@@ -263,6 +358,7 @@ void CubeScene::frame() {
 	gpu().chain(ot);
 	m_rot += 0.005_pi;
 }
+*/
 
 int main() { 
 	return cube.run(); 
