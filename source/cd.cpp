@@ -22,22 +22,31 @@ bool CD::advance() {
 			break;
 		case State::InitializingParser:
 			break;
-		case State::FindingFile: {
-				printf("Finding file %s ...\n", m_filename.c_str());
+		case State::FindFile: {
+				printf("Finding file %s \n", m_filename.c_str());
+				m_state = State::Finding; // set before calling getDirentry to avoid race condition if callback is called immediately
 				m_parser.getDirentry(m_filename, &m_entry, [this](bool s) { onFileFound(s); });
 			}
 			break;
-		case State::LoadingFile: {
+		case State::Finding:
+			printf(".");
+			break;
+		case State::LoadFile: {			
 				uint32_t sectorCount = (m_entry.size + 2047) >> 11;  // (divide by 2048);
-				printf("Loading file %s ... (LBA=%d, size=%d, sectors=%d)\n", m_filename.c_str(), m_entry.LBA, m_entry.size, sectorCount);
+				printf("Loading file %s (LBA=%d, size=%d, sectors=%d)\n", m_filename.c_str(), m_entry.LBA, m_entry.size, sectorCount);
+				m_state = State::Loading; // set before calling readSectors to avoid race condition if callback
+				printf("Loading");
 				m_cdrom.readSectors(m_entry.LBA, sectorCount, m_file_buffer, [this](bool s) { onFileLoaded(s); });
-				printf("File ready at LBA=%d, size=%d. Implement sector read!\n", m_entry.LBA, m_entry.size);
 			}
+			break;
+		case State::Loading:
+			printf(".");
 			break;
 		case State::Ready:
 			return true;
 			break;
 		case State::Error:
+			{ printf("CD-ROM error"); }
 			break;
 		default:
 			break;
@@ -52,7 +61,7 @@ void CD::onReset(bool success) {
 			m_parser.initialize( [this](bool s) { onParserInit(s); } );
 			m_state = State::InitializingParser;
 		} else {
-			m_state = State::FindingFile;
+			m_state = State::FindFile;
 		}
 	} else {
 		printf("ERROR: CD-ROM reset failed\n");
@@ -63,7 +72,7 @@ void CD::onReset(bool success) {
 void CD::onParserInit(bool success) {
 	if(success) {
 		printf("SUCCESS: Parser initialized\n");
-		m_state = State::FindingFile;
+		m_state = State::FindFile;
 	} else {
 		printf("ERROR: Parser initialization failed\n");
 		m_state = State::Error;
@@ -73,7 +82,7 @@ void CD::onParserInit(bool success) {
 void CD::onFileFound(bool success) {		   
 	if(success && m_entry.type == psyqo::ISO9660Parser::DirEntry::FILE) {
 		printf("SUCCESS: File found: LBA=%d, size=%d, name=%s\n", m_entry.LBA, m_entry.size, m_entry.name.c_str());
-		m_state = State::LoadingFile;
+		m_state = State::LoadFile;
 	} else {
 		printf("ERROR: File %s not found or invalid\n", m_filename.c_str());
 		m_state = State::Error;
@@ -82,13 +91,8 @@ void CD::onFileFound(bool success) {
 
 void CD::onFileLoaded(bool success) {
 	if(success) {
-		printf("SUCCESS: File loaded\n");
-		printf("File data (first 16 bytes): ");
-		for (unsigned i = 0; i < 16 && i < m_entry.size; i++) {
-			printf("%02X ", m_file_buffer[i]);
-		}
-		printf("\n");
 		m_state = State::Ready;
+		printf("\nSUCCESS: File loaded\n");
 	} else {
 		printf("ERROR: File load failed\n");
 		m_state = State::Error;

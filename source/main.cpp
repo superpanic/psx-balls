@@ -27,7 +27,7 @@ using namespace psyqo::trig_literals;
 
 static constexpr unsigned NUM_CUBE_VERTICES = 8;
 static constexpr unsigned NUM_CUBE_FACES = 6;
-static constexpr unsigned ORDERING_TABLE_SIZE = 240;
+static constexpr unsigned ORDERING_TABLE_SIZE = 1024;
 
 typedef struct {
 	uint8_t vertices[4];
@@ -64,9 +64,8 @@ class CubeScene final : public psyqo::Scene {
 		// Since we're using an ordering table, we need to sort fill commands as well,
 		// otherwise they'll draw over our beautiful cube.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
-		// define an array of 6 quads, one for each face of the cube
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Quad>, 6> m_quads;
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 12> m_triangles;
+		// define an array of triangles used to draw the object
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
 
@@ -124,12 +123,11 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 
-	m_cdrom.read("RECT.GLB;1");
+	m_cdrom.read("MILK.GLB;1");
 	m_color = {.r = 255, .g = 0, .b = 0};
 }
 
 void CubeScene::frame() {
-
 	m_cdrom.advance();   // Drive the state machine
 
 	if (!m_cdrom.isReady()) {
@@ -161,7 +159,7 @@ void CubeScene::frame() {
 	gpu().chain(clear);
 
 	// distance
-	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
+	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(12000);
 
 	// 1. Spinning rotations (X then Y)
 	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
@@ -199,12 +197,12 @@ void CubeScene::frame() {
 		// read the result of nclip and skip rendering this face if it's not facing us
 		int32_t mac0 = 0;
 		psyqo::GTE::read<psyqo::GTE::Register::MAC0>(reinterpret_cast<uint32_t*>(&mac0));
-//if(mac0 <= 0) continue;
+//		if(mac0 <= 0) continue;
 
 		psyqo::GTE::Kernels::avsz3();
 		int32_t zIndex = 0;
 		psyqo::GTE::read<psyqo::GTE::Register::OTZ>(reinterpret_cast<uint32_t*>(&zIndex));
-		//if(zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE) continue;
+// if(zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE) continue;
 
 		psyqo::GTE::read<psyqo::GTE::Register::SXY0>(&projected[0].packed);
 		psyqo::GTE::read<psyqo::GTE::Register::SXY1>(&projected[1].packed);
@@ -217,148 +215,14 @@ void CubeScene::frame() {
 		tri.primitive.setColor(m_color);
 		tri.primitive.setOpaque();
 
+//		printf("Triangle %d: zIndex=%d, points=(%d,%d), (%d,%d), (%d,%d)\n", t, zIndex, projected[0].x, projected[0].y, projected[1].x, projected[1].y, projected[2].x, projected[2].y);
+
 		ot.insert(tri, zIndex);
-
 	}
 
 	gpu().chain(ot);
-	//m_rot += psyqo::Angle(0.01);
-
+	m_rot += psyqo::Angle(0.01);
 }
-
-/*
-void CubeScene::frame() {
-
-	m_cdrom.advance();   // Drive the state machine
-
-	if (!m_cdrom.isReady()) {
-		// still loading → just clear screen
-		int parity = gpu().getParity();
-		auto &clear = m_clear[parity];
-		gpu().getNextClear(clear.primitive, c_bg);
-		gpu().chain(clear);
-		return;
-	}
-
-	if (!m_cubemesh.isValid()) {
-		// load the cube mesh from the GLB file
-		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_cubemesh);
-		psyqo::Kernel::assert(m_cubemesh.isValid(), "Failed to load Cube mesh from GLB file");
-	}
-
-	eastl::array<psyqo::Vertex, 4> projected;
-
-	// Get which frame we're currently drawing
-	int parity = gpu().getParity();
-
-	// Get our current ordering table and fill command
-	auto &ot = m_ots[parity];
-	auto &clear = m_clear[parity];
-
-	// Chain the fill command accordingly to clear the buffer
-	gpu().getNextClear(clear.primitive, c_bg);
-	gpu().chain(clear);
-
-	// We want the cube to appear slightly further away, so we translate it by 512
-	// on the Z-axis.
-	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(512);
-
-	// Here we're setting up the rotation for the spinning cube
-	// First, generate a rotation matrix for the X-axis and Y-axis
-	auto transform = psyqo::SoftMath::generateRotationMatrix33(
-	    m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
-	auto rot = psyqo::SoftMath::generateRotationMatrix33(
-	    m_rot, psyqo::SoftMath::Axis::Y, cube.m_trig);
-
-	// Multiply the X and Y rotation matrices together
-	psyqo::SoftMath::multiplyMatrix33(transform, rot, &transform);
-
-	// Generate a Z-axis rotation matrix (Empty, but it's here for your use)
-	psyqo::SoftMath::generateRotationMatrix33(&rot, 0, psyqo::SoftMath::Axis::Z,
-						  cube.m_trig);
-
-	// Apply the combined rotation and write it to the pseudo register for the
-	// cube's rotation
-	psyqo::SoftMath::multiplyMatrix33(transform, rot, &transform);
-	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
-
-	int faceNum = 0;
-
-	for (auto face : c_cubeFaces) {
-		// We load the first 3 vertices into the GTE. We can't do all 4 at once
-		// because the GTE handles only 3 at a time...
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(
-		    c_cubeVertices[face.vertices[0]]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(
-		    c_cubeVertices[face.vertices[1]]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(
-		    c_cubeVertices[face.vertices[2]]);
-
-		// We perform rtpt (Perspective transformation) to the three verticies.
-		psyqo::GTE::Kernels::rtpt();
-
-		// Nclip determines the winding of the vertices, used to check which
-		// direction the face is pointing. Clockwise winding means the face is
-		// oriented towards us.
-		psyqo::GTE::Kernels::nclip();
-
-		// Read the result of nclip and skip rendering this face if it's not facing
-		// us
-		int32_t mac0 = 0;
-		psyqo::GTE::read<psyqo::GTE::Register::MAC0>(
-		    reinterpret_cast<uint32_t *>(&mac0));
-		if (mac0 <= 0)
-			continue;
-
-		// Since the GTE can only handle 3 vertices at a time, we need to store our
-		// first vertex so we can write our last one.
-		psyqo::GTE::read<psyqo::GTE::Register::SXY0>(&projected[0].packed);
-
-		// Write the last vertex
-		psyqo::GTE::writeSafe<psyqo::GTE::PseudoRegister::V0>(
-		    c_cubeVertices[face.vertices[3]]);
-
-		// Perform rtps (Perspective transformation) to the last vertice (rtpS -
-		// single, rtpT - triple).
-		psyqo::GTE::Kernels::rtps();
-
-		// Calculate the average Z for the z-Index to be put in the ordering table
-		psyqo::GTE::Kernels::avsz4();
-		int32_t zIndex = 0;
-		psyqo::GTE::read<psyqo::GTE::Register::OTZ>(
-		    reinterpret_cast<uint32_t *>(&zIndex));
-
-		// If the Z-index is out of bounds for our ordering table, we skip rendering
-		// this face.
-		if (zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE)
-			continue;
-
-		// Read the 3 remaining vertices from the GTE
-		psyqo::GTE::read<psyqo::GTE::Register::SXY0>(&projected[1].packed);
-		psyqo::GTE::read<psyqo::GTE::Register::SXY1>(&projected[2].packed);
-		psyqo::GTE::read<psyqo::GTE::Register::SXY2>(&projected[3].packed);
-
-		// Take a Quad fragment from our array, set its vertices, color and make it
-		// opaque
-		auto &quad = m_quads[faceNum];
-		quad.primitive.setPointA(projected[0]);
-		quad.primitive.setPointB(projected[1]);
-		quad.primitive.setPointC(projected[2]);
-		quad.primitive.setPointD(projected[3]);
-		quad.primitive.setColor(face.color);
-		quad.primitive.setOpaque();
-
-		// Insert the Quad fragment into the ordering table at the calculated
-		// Z-index.
-		ot.insert(quad, zIndex);
-		faceNum++;
-	}
-
-	// Send the entire ordering table as a DMA chain to the GPU.
-	gpu().chain(ot);
-	m_rot += 0.005_pi;
-}
-*/
 
 int main() { 
 	return cube.run(); 

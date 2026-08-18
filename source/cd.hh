@@ -19,7 +19,7 @@ class CD {
 		const psyqo::ISO9660Parser::DirEntry &getEntry() const { return m_entry; }
 		psyqo::CDRomDevice &getCDRom() { return m_cdrom; }
 		
-		constexpr static size_t MAX_FILE_SIZE = 64 * 1024;   // e.g. 64 KB max per model
+		constexpr static size_t MAX_FILE_SIZE = 256 * 1024;   // e.g. 64 KB max per model
 		constexpr static unsigned MAX_FILENAME_LENGTH = 16;
 
 	private:
@@ -27,8 +27,10 @@ class CD {
 			Idle,
 			Resetting,
 			InitializingParser,
-			FindingFile,
-			LoadingFile,
+			FindFile,
+			Finding,
+			LoadFile,
+			Loading,
 			Ready,
 			Error
 		};
