@@ -117,7 +117,7 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::OFY, psyqo::GTE::Unsafe>(psyqo::FixedPoint<16>(120.0).raw());
 
 	// Write the projection plane distance.
-	psyqo::GTE::write<psyqo::GTE::Register::H, psyqo::GTE::Unsafe>(120);
+	psyqo::GTE::write<psyqo::GTE::Register::H, psyqo::GTE::Unsafe>(180);
 
 	// Set the scaling for Z averaging.
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
@@ -159,7 +159,7 @@ void CubeScene::frame() {
 	gpu().chain(clear);
 
 	// distance
-	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(12000);
+	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(24000);
 
 	// 1. Spinning rotations (X then Y)
 	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
@@ -197,7 +197,7 @@ void CubeScene::frame() {
 		// read the result of nclip and skip rendering this face if it's not facing us
 		int32_t mac0 = 0;
 		psyqo::GTE::read<psyqo::GTE::Register::MAC0>(reinterpret_cast<uint32_t*>(&mac0));
-//		if(mac0 <= 0) continue;
+		if(mac0 <= 0) continue;
 
 		psyqo::GTE::Kernels::avsz3();
 		int32_t zIndex = 0;
