@@ -8,6 +8,7 @@
 #include "psyqo/primitives/common.hh"
 #include "psyqo/primitives/quads.hh"
 #include "psyqo/primitives/triangles.hh"
+#include "psyqo/primitives/lines.hh"
 #include "psyqo/scene.hh"
 #include "psyqo/soft-math.hh"
 #include "psyqo/trigonometry.hh"
@@ -25,14 +26,7 @@
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
 
-static constexpr unsigned NUM_CUBE_VERTICES = 8;
-static constexpr unsigned NUM_CUBE_FACES = 6;
-static constexpr unsigned ORDERING_TABLE_SIZE = 1024;
-
-typedef struct {
-	uint8_t vertices[4];
-	psyqo::Color color;
-} Face;
+static constexpr unsigned ORDERING_TABLE_SIZE = 2048;
 
 static constexpr psyqo::Matrix33 identity = {{
 	{1.0_fp, 0.0_fp, 0.0_fp},
@@ -66,21 +60,12 @@ class CubeScene final : public psyqo::Scene {
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of triangles used to draw the object
 		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
+		// define an array of line primitives to draw the object
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, 64*3> m_lines;
+		// line color
+		static constexpr psyqo::Color c_li = {.r = 0, .g = 0, .b = 0};
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
-
-		static constexpr psyqo::Vec3 c_cubeVertices[NUM_CUBE_VERTICES] = {
-			{.x = -0.05, .y = -0.05, .z = -0.05}, {.x = 0.05, .y = -0.05, .z = -0.05}, {.x = -0.05, .y = 0.05, .z = -0.05}, {.x = 0.05, .y = 0.05, .z = -0.05}, {.x = -0.05, .y = -0.05, .z = 0.05}, {.x = 0.05, .y = -0.05, .z = 0.05}, {.x = -0.05, .y = 0.05, .z = 0.05}, {.x = 0.05, .y = 0.05, .z = 0.05}
-		};
-
-		static constexpr Face c_cubeFaces[NUM_CUBE_FACES] = {
-			{.vertices = {0, 1, 2, 3}, .color = {0, 0, 255}},
-			{.vertices = {6, 7, 4, 5}, .color = {0, 255, 0}},
-			{.vertices = {4, 5, 0, 1}, .color = {0, 255, 255}},
-			{.vertices = {7, 6, 3, 2}, .color = {255, 0, 0}},
-			{.vertices = {6, 4, 2, 0}, .color = {255, 0, 255}},
-			{.vertices = {5, 7, 1, 3}, .color = {255, 255, 0}}
-		};
 
 	private:
 		CD m_cdrom;
@@ -111,17 +96,21 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::clear<psyqo::GTE::Register::TRY, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>();
 
-	// Set the screen offset in the GTE. (this is half the X and Y resolutions as
-	// standard)
+	// set the screen offset in the GTE. 
+	// (this is half the X and Y resolutions as standard)
 	psyqo::GTE::write<psyqo::GTE::Register::OFX, psyqo::GTE::Unsafe>(psyqo::FixedPoint<16>(160.0).raw());
 	psyqo::GTE::write<psyqo::GTE::Register::OFY, psyqo::GTE::Unsafe>(psyqo::FixedPoint<16>(120.0).raw());
 
-	// Write the projection plane distance.
+	// write the projection plane distance (FOV).
 	psyqo::GTE::write<psyqo::GTE::Register::H, psyqo::GTE::Unsafe>(180);
 
 	// Set the scaling for Z averaging.
-	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
-	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
+//	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
+//	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
+
+	// agressive otz compression, but larger world space
+	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50);
+	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40);
 
 	m_cdrom.read("MILK.GLB;1");
 	m_color = {.r = 255, .g = 0, .b = 0};
@@ -159,7 +148,7 @@ void CubeScene::frame() {
 	gpu().chain(clear);
 
 	// distance
-	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(24000);
+	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
 
 	// 1. Spinning rotations (X then Y)
 	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
@@ -202,7 +191,7 @@ void CubeScene::frame() {
 		psyqo::GTE::Kernels::avsz3();
 		int32_t zIndex = 0;
 		psyqo::GTE::read<psyqo::GTE::Register::OTZ>(reinterpret_cast<uint32_t*>(&zIndex));
-// if(zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE) continue;
+ 		if(zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE) continue;
 
 		psyqo::GTE::read<psyqo::GTE::Register::SXY0>(&projected[0].packed);
 		psyqo::GTE::read<psyqo::GTE::Register::SXY1>(&projected[1].packed);
@@ -215,9 +204,33 @@ void CubeScene::frame() {
 		tri.primitive.setColor(m_color);
 		tri.primitive.setOpaque();
 
-//		printf("Triangle %d: zIndex=%d, points=(%d,%d), (%d,%d), (%d,%d)\n", t, zIndex, projected[0].x, projected[0].y, projected[1].x, projected[1].y, projected[2].x, projected[2].y);
-
 		ot.insert(tri, zIndex);
+
+		// draw the edges of the triangle as lines
+		auto &lin0 = m_lines[i];
+		lin0.primitive.pointA.x = projected[0].x;
+		lin0.primitive.pointA.y = projected[0].y;
+		lin0.primitive.pointB.x = projected[1].x;
+		lin0.primitive.pointB.y = projected[1].y;
+		lin0.primitive.setColor(c_li); // black lines
+		ot.insert(lin0, 0); // insert the line into the ordering table with a zIndex of 0, so it will always be drawn on top of the triangle
+
+		auto &lin1 = m_lines[i+1];
+		lin1.primitive.pointA.x = projected[1].x;
+		lin1.primitive.pointA.y = projected[1].y;
+		lin1.primitive.pointB.x = projected[2].x;
+		lin1.primitive.pointB.y = projected[2].y;
+		lin1.primitive.setColor(c_li);
+		ot.insert(lin1, 0);
+
+		auto &lin2 = m_lines[i+2];
+		lin2.primitive.pointA.x = projected[2].x;
+		lin2.primitive.pointA.y = projected[2].y;
+		lin2.primitive.pointB.x = projected[0].x;
+		lin2.primitive.pointB.y = projected[0].y;
+		lin2.primitive.setColor(c_li);
+		ot.insert(lin2, 0);
+	
 	}
 
 	gpu().chain(ot);
