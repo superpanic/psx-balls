@@ -42,7 +42,9 @@ typedef struct Mesh {
 	eastl::string name;
 	psyqo::Vec3 vertices[SMALL_MODEL_MAX_VERTICES];
 	uint8_t indices[SMALL_MODEL_MAX_INDICES];
+	psyqo::Vec2 texcoords[SMALL_MODEL_MAX_VERTICES];
 	unsigned num_vertices = 0;
+	unsigned num_texcoords = 0;
 	unsigned num_indices = 0;
 	bool isValid() const { return num_vertices > 0 && num_indices > 0; }
 } Mesh;

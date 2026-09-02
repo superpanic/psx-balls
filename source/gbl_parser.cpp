@@ -183,6 +183,24 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	}
 	mesh->num_vertices = accessors[0].count;
 
+	// read texcoords
+	head = bin_ptr + bufferViews[2].byteOffset;
+	psyqo::Kernel::assert(head + bufferViews[2].byteLength <= end, "BufferView exceeds binary chunk size");
+	for(int i=0; i<accessors[2].count && i<SMALL_MODEL_MAX_VERTICES; i++) {
+		psyqo::Vec2 &tc = mesh->texcoords[i];
+		if (accessors[2].componentType == FLOAT && accessors[2].type == "VEC2") {
+        	uint32_t bu = READ_LE32(head); head += 4;
+        	uint32_t bv = READ_LE32(head); head += 4;
+			tc.x = psyqo::FixedPoint<>(float32_bits_to_fixed12(bu), psyqo::FixedPoint<>::RAW);
+			tc.y = psyqo::FixedPoint<>(float32_bits_to_fixed12(bv), psyqo::FixedPoint<>::RAW);
+			printf("texcoord[%d]: u=%d, v=%d\n", i, tc.x.raw(), tc.y.raw());
+		} else {
+			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for texcoords");
+		}
+	}
+
+	mesh->num_texcoords = accessors[2].count;
+
 	// read indices
 	head = bin_ptr + bufferViews[3].byteOffset;
 	psyqo::Kernel::assert(head + bufferViews[3].byteLength <= end, "BufferView exceeds binary chunk size");
