@@ -17,6 +17,7 @@
 			<file name="MAIN.EXE"	 type="data"	source="psx-balls.ps-exe"/>
 			<file name="MILK.GLB"   type="data" 	source="ASSETS/GFX/MILK.GLB"/>
 			<file name="RECT.GLB"   type="data" 	source="ASSETS/GFX/RECT.GLB"/>
+			<file name="MILK.TIM" type="data"	source="ASSETS/GFX/MILK.TIM"/>
 			<dummy sectors="1024"/>
 		</directory_tree>
 	</track>
