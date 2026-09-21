@@ -1,27 +1,25 @@
 #include "psyqo/application.hh"
 #include "psyqo/cdrom-device.hh"
-#include "psyqo/fixed-point.hh"
 #include "psyqo/fragments.hh"
 #include "psyqo/gpu.hh"
 #include "psyqo/gte-kernels.hh"
 #include "psyqo/gte-registers.hh"
 #include "psyqo/primitives/common.hh"
-#include "psyqo/primitives/quads.hh"
 #include "psyqo/primitives/triangles.hh"
 #include "psyqo/primitives/lines.hh"
 #include "psyqo/scene.hh"
 #include "psyqo/soft-math.hh"
 #include "psyqo/trigonometry.hh"
-#include "psyqo/vector.hh"
-#include "psyqo/xprintf.h"
-#include "psyqo/buffer.hh"
-#include "psyqo/iso9660-parser.hh"
+#include <psyqo/xprintf.h>
+#include <EASTL/string.h>
 
 #include <cstddef>
 #include <cstdint>
 
 #include "gbl_parser.hh"
 #include "cd.hh"
+#include "texture.hh"
+
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -69,7 +67,8 @@ class CubeScene final : public psyqo::Scene {
 
 	private:
 		CD m_cdrom;
-		Mesh m_cubemesh;
+		Mesh m_mesh;
+		Texture m_texture;
 		psyqo::Color m_color;
 };
 
@@ -112,6 +111,20 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40);
 
+	LoadRequest request;
+	request.setFilename("MILK.GLB;1");
+	request.buffer = m_cdrom.getFileBuffer();
+	request.max_size = CD::MAX_FILE_SIZE;
+	request.loaded_size = 0;
+	request.callback = [](bool success, uint32_t size) {
+		if(!success) {
+			printf("Failed to load file\n");
+		} else {
+			printf("Loaded %d bytes\n", size);
+		}
+	};
+	//m_cdrom.request(request);
+
 	m_cdrom.read("MILK.GLB;1");
 	m_color = {.r = 255, .g = 0, .b = 0};
 }
@@ -128,10 +141,10 @@ void CubeScene::frame() {
 		return;
 	}
 
-	if (!m_cubemesh.isValid()) {
+	if (!m_mesh.isValid()) {
 		// load the cube mesh from the GLB file
-		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_cubemesh);
-		psyqo::Kernel::assert(m_cubemesh.isValid(), "Failed to load Cube mesh from GLB file");
+		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_mesh);
+		psyqo::Kernel::assert(m_mesh.isValid(), "Failed to load Cube mesh from GLB file");
 	}
 
 	// holding the projected 2D results of the 3D vertices, 
@@ -170,12 +183,11 @@ void CubeScene::frame() {
 	// 4. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
 
-
-	for(int i=0, t=0; i<m_cubemesh.num_indices; i+=3, t++) {
+	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
 		// load 3 vertices into the GTE.
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_cubemesh.vertices[m_cubemesh.indices[i+2]]); // count backwards because the GTE expects them in reverse order
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_cubemesh.vertices[m_cubemesh.indices[i+1]]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_cubemesh.vertices[m_cubemesh.indices[i+0]]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[m_mesh.indices[i+2]]); // count backwards because the GTE expects them in reverse order
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_mesh.vertices[m_mesh.indices[i+1]]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_mesh.vertices[m_mesh.indices[i+0]]);
 
 		// perform rtpt (perspective transformation) to the three verticies.
 		psyqo::GTE::Kernels::rtpt();

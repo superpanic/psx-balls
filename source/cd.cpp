@@ -2,15 +2,25 @@
 #include "psyqo/kernel.hh"
 #include "psyqo/xprintf.h"
 
-void CD::read(eastl::string filename) {
-    psyqo::Kernel::assert(filename.size() <= MAX_FILENAME_LENGTH, "Filename too long!");
-	m_filename = filename;
+void CD::read(eastl::string_view filename) {
+	psyqo::Kernel::assert(filename.size() <= MAX_FILENAME_LENGTH, "Filename too long!");
+	m_filename.assign(filename.data(), filename.size());
 
 	if(m_state == State::Idle) {
 		m_cdrom.prepare();
 		m_cdrom.reset([this](bool s) { onReset(s); });
 		m_state = State::Resetting;
 	}
+}
+
+void CD::request(const LoadRequest &request) {
+	psyqo::Kernel::assert(request.filename[0] != '\0', "Filename is empty!");
+	m_loadRequestQueue[m_loadRequestQueueCount++] = request;
+	psyqo::Kernel::assert(m_loadRequestQueueCount <= CD::MAX_QUEUE_SIZE, "Load request queue overflow!");
+	if(m_state == State::Idle) {
+		read(m_loadRequestQueue[0].filename);
+	}
+	//TODO: Implement handling of subsequent requests in the queue after the first one is processed.
 }
 
 bool CD::advance() {
@@ -29,7 +39,7 @@ bool CD::advance() {
 			}
 			break;
 		case State::Finding:
-			printf(".");
+			printf("*");
 			break;
 		case State::LoadFile: {			
 				uint32_t sectorCount = (m_entry.size + 2047) >> 11;  // (divide by 2048);
@@ -40,7 +50,7 @@ bool CD::advance() {
 			}
 			break;
 		case State::Loading:
-			printf(".");
+			printf("#");
 			break;
 		case State::Ready:
 			return true;
