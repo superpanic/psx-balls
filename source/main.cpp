@@ -111,21 +111,37 @@ void CubeScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40);
 
-	LoadRequest request;
-	request.setFilename("MILK.GLB;1");
-	request.buffer = m_cdrom.getFileBuffer();
-	request.max_size = CD::MAX_FILE_SIZE;
-	request.loaded_size = 0;
-	request.callback = [](bool success, uint32_t size) {
+	alignas(4) uint8_t model_buffer[CD::MAX_FILE_SIZE];
+	alignas(4) uint8_t texture_buffer[CD::MAX_FILE_SIZE];
+
+	LoadRequest model;
+	model.setFilename("MILK.GLB;1");
+	model.buffer = model_buffer;
+	model.max_size = CD::MAX_FILE_SIZE;
+	model.loaded_size = 0;
+	model.callback = [](bool success, uint32_t size) {
 		if(!success) {
 			printf("Failed to load file\n");
 		} else {
 			printf("Loaded %d bytes\n", size);
 		}
 	};
-	//m_cdrom.request(request);
+	m_cdrom.request(model);
+	
+	LoadRequest texture;
+	texture.setFilename("MILK.TEX;1");
+	texture.buffer = texture_buffer;
+	texture.max_size = CD::MAX_FILE_SIZE;
+	texture.loaded_size = 0;
+	texture.callback = [](bool success, uint32_t size) {
+		if(!success) {
+			printf("Failed to load texture\n");
+		} else {
+			printf("Loaded %d bytes\n", size);
+		}
+	};
+	m_cdrom.request(texture);
 
-	m_cdrom.read("MILK.GLB;1");
 	m_color = {.r = 255, .g = 0, .b = 0};
 }
 

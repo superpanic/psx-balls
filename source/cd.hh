@@ -9,6 +9,7 @@
 
 typedef struct LoadRequest {
 	char filename[MAX_FILENAME_LENGTH+1];
+	psyqo::ISO9660Parser::DirEntry dir_entry;
 	uint8_t *buffer;
 	size_t max_size;
 	size_t loaded_size;
@@ -26,8 +27,8 @@ class CD {
 		void request(const LoadRequest &request);
 		void read(eastl::string_view filename);
 		bool advance();
-		bool isBusy() const { return m_state != State::Idle && m_state != State::Ready && m_state != State::Error; }
-		bool isReady() const { return m_state == State::Ready; }
+		bool isBusy() const { return m_state != State::Idle && m_state != State::Error; }
+		bool isReady() const { return m_state == State::Idle; }
 		bool hasError() const { return m_state == State::Error; }
 		uint8_t *getFileBuffer() { return m_file_buffer; }
 
@@ -43,17 +44,16 @@ class CD {
 			Idle,
 			Resetting,
 			InitializingParser,
-			FindFile,
 			Finding,
-			LoadFile,
 			Loading,
-			Ready,
 			Error
 		};
 		State m_state = State::Idle;
 
+		bool m_firstRun = true;
+
 		LoadRequest m_loadRequestQueue[MAX_QUEUE_SIZE];
-		unsigned m_loadRequestQueueCount = 0;
+		unsigned m_queueCount = 0;
 
 		alignas(4) uint8_t m_file_buffer[MAX_FILE_SIZE];
 		psyqo::CDRomDevice m_cdrom;
@@ -61,6 +61,9 @@ class CD {
 		eastl::string m_filename;
 		psyqo::ISO9660Parser::DirEntry m_entry;
 
+		void findFile();
+		void loadFile();
+		void removeRequest();
 		void onReset(bool success);
 		void onParserInit(bool success);
 		void onFileFound(bool success);
