@@ -126,10 +126,9 @@ void CubeScene::start(StartReason reason) {
 			printf("Loaded %d bytes\n", size);
 		}
 	};
-	m_cdrom.request(model);
 	
 	LoadRequest texture;
-	texture.setFilename("MILK.TEX;1");
+	texture.setFilename("MILK.TIM;1");
 	texture.buffer = texture_buffer;
 	texture.max_size = CD::MAX_FILE_SIZE;
 	texture.loaded_size = 0;
@@ -140,6 +139,8 @@ void CubeScene::start(StartReason reason) {
 			printf("Loaded %d bytes\n", size);
 		}
 	};
+
+	m_cdrom.request(model);
 	m_cdrom.request(texture);
 
 	m_color = {.r = 255, .g = 0, .b = 0};

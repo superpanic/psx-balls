@@ -66,7 +66,7 @@ void CD::findFile() {
 
 void CD::loadFile() {
 	uint32_t sectorCount = (m_loadRequestQueue[0].dir_entry.size + 2047) >> 11;  // (divide by 2048);
-	printf("Loading file %s (LBA=%d, size=%d, sectors=%d)\n", m_filename.c_str(), m_loadRequestQueue[0].dir_entry.LBA, m_loadRequestQueue[0].dir_entry.size, sectorCount);
+	printf("Loading file %s (LBA=%d, size=%d, sectors=%d)\n", m_loadRequestQueue[0].filename, m_loadRequestQueue[0].dir_entry.LBA, m_loadRequestQueue[0].dir_entry.size, sectorCount);
 	m_state = State::Loading; // set before calling readSectors to avoid race condition if callback
 	printf("Loading ");
 	m_cdrom.readSectors(m_loadRequestQueue[0].dir_entry.LBA, sectorCount, m_loadRequestQueue[0].buffer, [this](bool s) { onFileLoaded(s); });
@@ -109,19 +109,16 @@ void CD::onFileFound(bool success) {
 
 void CD::onFileLoaded(bool success) {
 	if(success) {
+		printf("\nSUCCESS: File loaded\n");
 		if(m_loadRequestQueue[0].callback) {
 			m_loadRequestQueue[0].callback(true, m_loadRequestQueue[0].dir_entry.size);
 		}
-		
 		removeRequest();
-		
 		if(m_queueCount > 0) {
 			findFile();
 		} else {
 			m_state = State::Idle;
 		}
-		
-		printf("\nSUCCESS: File loaded\n");
 	} else {
 		printf("ERROR: File load failed\n");
 		m_state = State::Error;
