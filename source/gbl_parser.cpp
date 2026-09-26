@@ -19,6 +19,7 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	BufferView bufferViews[MAX_BUFFERVIEWS];
 
 	if(size < sizeof(uint32_t)) {
+		printf("GLB file too small to contain magic number\n");
 		return false; // Not enough data for magic number
 	}
 
@@ -26,6 +27,7 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 	uint32_t magic = READ_BE32(head);
 	head += 4;
 	if(magic != GLTF_MAGIC) {
+		printf("Invalid GLB magic number: 0x%08X\n", magic);
 		return false; // Invalid magic number
 	} else {
 		printf("GLTF magic number verified: 0x%08X\n", magic);

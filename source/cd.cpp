@@ -38,7 +38,6 @@ void CD::removeRequest() {
 bool CD::advance() {
 	switch (m_state) {
 		case State::Idle:
-			printf("Use read(filename) to start reading a file.\n");
 			break;
 		case State::Resetting:
 			break;
@@ -51,7 +50,7 @@ bool CD::advance() {
 			printf("#");
 			break;
 		case State::Error:
-			{ printf("CD-ROM error"); }
+			printf("CD-ROM error");
 			break;
 		default:
 			break;

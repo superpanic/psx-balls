@@ -68,7 +68,8 @@ class CubeScene final : public psyqo::Scene {
 	private:
 		CD m_cdrom;
 		Mesh m_mesh;
-		Texture m_texture;
+		LoadRequest m_load_model;
+		LoadRequest m_load_texture;
 		psyqo::Color m_color;
 };
 
@@ -114,35 +115,34 @@ void CubeScene::start(StartReason reason) {
 	alignas(4) uint8_t model_buffer[CD::MAX_FILE_SIZE];
 	alignas(4) uint8_t texture_buffer[CD::MAX_FILE_SIZE];
 
-	LoadRequest model;
-	model.setFilename("MILK.GLB;1");
-	model.buffer = model_buffer;
-	model.max_size = CD::MAX_FILE_SIZE;
-	model.loaded_size = 0;
-	model.callback = [](bool success, uint32_t size) {
+	m_load_model.setFilename("MILK.GLB;1");
+	m_load_model.buffer = model_buffer;
+	m_load_model.max_size = CD::MAX_FILE_SIZE;
+	m_load_model.loaded_size = 0;
+	m_load_model.callback = [this](bool success, uint32_t size) {
 		if(!success) {
 			printf("Failed to load file\n");
 		} else {
+			m_load_model.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
 		}
 	};
 	
-	LoadRequest texture;
-	texture.setFilename("MILK.TIM;1");
-	texture.buffer = texture_buffer;
-	texture.max_size = CD::MAX_FILE_SIZE;
-	texture.loaded_size = 0;
-	texture.callback = [](bool success, uint32_t size) {
+	m_load_texture.setFilename("MILK.TIM;1");
+	m_load_texture.buffer = texture_buffer;
+	m_load_texture.max_size = CD::MAX_FILE_SIZE;
+	m_load_texture.loaded_size = 0;
+	m_load_texture.callback = [this](bool success, uint32_t size) {
 		if(!success) {
 			printf("Failed to load texture\n");
 		} else {
+			m_load_texture.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
 		}
 	};
 
-	m_cdrom.request(model);
-	m_cdrom.request(texture);
-
+	m_cdrom.request(m_load_model);
+	m_cdrom.request(m_load_texture);
 	m_color = {.r = 255, .g = 0, .b = 0};
 }
 
@@ -160,7 +160,7 @@ void CubeScene::frame() {
 
 	if (!m_mesh.isValid()) {
 		// load the cube mesh from the GLB file
-		parse_GBL(m_cdrom.getFileBuffer(), m_cdrom.getEntry().size, &m_mesh);
+		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_mesh);
 		psyqo::Kernel::assert(m_mesh.isValid(), "Failed to load Cube mesh from GLB file");
 	}
 
