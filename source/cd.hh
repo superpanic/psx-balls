@@ -37,7 +37,7 @@ class CD {
 		psyqo::CDRomDevice &getCDRom() { return m_cdrom; }
 
 		constexpr static unsigned MAX_QUEUE_SIZE = 4;
-		constexpr static size_t MAX_FILE_SIZE = 256 * 1024;   // e.g. 256 KB max per model
+		constexpr static size_t MAX_FILE_SIZE = 64 * 1024;   // e.g. 256 KB max per model
 
 	private:
 		enum class State {

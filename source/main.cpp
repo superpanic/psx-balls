@@ -68,6 +68,7 @@ class CubeScene final : public psyqo::Scene {
 	private:
 		CD m_cdrom;
 		Mesh m_mesh;
+		Texture m_texture;
 		LoadRequest m_load_model;
 		LoadRequest m_load_texture;
 		psyqo::Color m_color;
@@ -91,7 +92,7 @@ void Cube::createScene() {
 }
 
 void CubeScene::start(StartReason reason) {
-	// Clear the translation registers
+	// clear the translation registers
 	psyqo::GTE::clear<psyqo::GTE::Register::TRX, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRY, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>();
@@ -104,7 +105,7 @@ void CubeScene::start(StartReason reason) {
 	// write the projection plane distance (FOV).
 	psyqo::GTE::write<psyqo::GTE::Register::H, psyqo::GTE::Unsafe>(180);
 
-	// Set the scaling for Z averaging.
+	// set the scaling for Z averaging.
 //	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 //	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 
@@ -120,11 +121,11 @@ void CubeScene::start(StartReason reason) {
 	m_load_model.max_size = CD::MAX_FILE_SIZE;
 	m_load_model.loaded_size = 0;
 	m_load_model.callback = [this](bool success, uint32_t size) {
-		if(!success) {
-			printf("Failed to load file\n");
-		} else {
+		if(success) {
 			m_load_model.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
+		} else {
+			printf("Failed to load file\n");
 		}
 	};
 	
@@ -133,11 +134,11 @@ void CubeScene::start(StartReason reason) {
 	m_load_texture.max_size = CD::MAX_FILE_SIZE;
 	m_load_texture.loaded_size = 0;
 	m_load_texture.callback = [this](bool success, uint32_t size) {
-		if(!success) {
-			printf("Failed to load texture\n");
-		} else {
+		if(success) {
 			m_load_texture.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
+		} else {
+			printf("Failed to load texture\n");
 		}
 	};
 
@@ -149,7 +150,8 @@ void CubeScene::start(StartReason reason) {
 void CubeScene::frame() {
 	m_cdrom.advance();   // Drive the state machine
 
-	if (!m_cdrom.isReady()) {
+/*
+	if (m_cdrom.isBusy()) {
 		// still loading → just clear screen
 		int parity = gpu().getParity();
 		auto &clear = m_clear[parity];
@@ -157,11 +159,18 @@ void CubeScene::frame() {
 		gpu().chain(clear);
 		return;
 	}
+*/
 
-	if (!m_mesh.isValid()) {
+	if (!m_mesh.isValid() && m_load_model.loaded_size > 0) {
 		// load the cube mesh from the GLB file
 		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_mesh);
 		psyqo::Kernel::assert(m_mesh.isValid(), "Failed to load Cube mesh from GLB file");
+	}
+
+	// load the texture from the TIM file
+	if (!m_texture.isValid() && m_load_texture.loaded_size > 0) {
+		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_texture);
+		psyqo::Kernel::assert(m_texture.isValid(), "Failed to load texture from TIM file");
 	}
 
 	// holding the projected 2D results of the 3D vertices, 
@@ -200,6 +209,7 @@ void CubeScene::frame() {
 	// 4. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
 
+	// will only run if the mesh has any indices to process
 	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
 		// load 3 vertices into the GTE.
 		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[m_mesh.indices[i+2]]); // count backwards because the GTE expects them in reverse order
