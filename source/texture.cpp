@@ -87,11 +87,12 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	texture->ih = READ_LE16(image_data);
 	image_data += 2;
 	texture->pixels = (const uint16_t *)image_data;
-	texture->is_valid = true;
 
 	printf("Image X: %u\n", texture->ix);
 	printf("Image Y: %u\n", texture->iy);
 	printf("Image W: %u\n", texture->iw);
 	printf("Image H: %u\n", texture->ih);
 	printf("Image size: %u\n", image_size);
+
+	texture->is_valid = true;
 }
