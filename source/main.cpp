@@ -57,7 +57,8 @@ class CubeScene final : public psyqo::Scene {
 		// otherwise they'll draw over our beautiful cube.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of triangles used to draw the object
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
+//		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>, 64> m_triangles;
 		// define an array of line primitives to draw the object
 		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, 64*3> m_lines;
 		// line color
@@ -144,7 +145,7 @@ void CubeScene::start(StartReason reason) {
 
 	m_cdrom.request(m_load_model);
 	m_cdrom.request(m_load_texture);
-	m_color = {.r = 255, .g = 0, .b = 0};
+	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
 }
 
 void CubeScene::frame() {
@@ -171,8 +172,10 @@ void CubeScene::frame() {
 	if (!m_texture.isValid() && m_load_texture.loaded_size > 0) {
 		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_texture);
 		psyqo::Kernel::assert(m_texture.isValid(), "Failed to load texture from TIM file");
+		m_texture.tpage = pack_TPage(m_texture.ix, m_texture.iy, m_texture.pmode);
+		m_texture.clut_index = pack_CLUT(m_texture.cx, m_texture.cy);
 		gpu().uploadToVRAM(m_texture.pixels, {m_texture.ix, m_texture.iy, m_texture.iw, m_texture.ih});
-		gpu().uploadToVRAM(m_texture.clut, {m_texture.cx, m_texture.cy, m_texture.pmode, m_texture.ch});
+		gpu().uploadToVRAM(m_texture.clut, {m_texture.cx, m_texture.cy, m_texture.cw, m_texture.ch});
 	}
 
 	// holding the projected 2D results of the 3D vertices, 
@@ -239,9 +242,9 @@ void CubeScene::frame() {
 		psyqo::GTE::read<psyqo::GTE::Register::SXY2>(&projected[2].packed);
 
 		auto &tri = m_triangles[t];
-		tri.primitive.setPointA(projected[0]);
-		tri.primitive.setPointB(projected[1]);
-		tri.primitive.setPointC(projected[2]);
+		tri.primitive.pointA = projected[0];
+		tri.primitive.pointB = projected[1];
+		tri.primitive.pointC = projected[2];
 		tri.primitive.setColor(m_color);
 		tri.primitive.setOpaque();
 
@@ -271,7 +274,6 @@ void CubeScene::frame() {
 		lin2.primitive.pointB.y = projected[0].y;
 		lin2.primitive.setColor(c_li);
 		ot.insert(lin2, 0);
-	
 	}
 
 	gpu().chain(ot);

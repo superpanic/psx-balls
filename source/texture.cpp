@@ -24,22 +24,23 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 		texture->has_clut = false;
 	}
 
-	uint8_t pmode = READ_LE8(head + TIM_HEADER_FLAG_OFFSET) & 0x3;
-	switch (pmode) {
+	texture->pmode = READ_LE8(head + TIM_HEADER_FLAG_OFFSET) & 0x3;
+	uint8_t pmode;
+	switch (texture->pmode) {
 		case 0:
-			texture->pmode = 4;
+			pmode = 4;
 			// 4bpp
 			break;
 		case 1:
-			texture->pmode = 8;
+			pmode = 8;
 			// 8bpp
 			break;
 		case 2:
-			texture->pmode = 16;
+			pmode = 16;
 			// 16bpp
 			break;
 		case 3:
-			texture->pmode = 24;
+			pmode = 24;
 			// 24bpp
 			break;
 		default:
@@ -47,8 +48,7 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 			texture->is_valid = false;
 			return;
 	}
-	
-	printf("Pixel mode: %u\n", texture->pmode);
+	printf("Pixel mode: %u\n", pmode);
 	printf("Has CLUT: %s\n", texture->has_clut ? "true" : "false");
 
 	uint8_t *clut_data = (uint8_t *)(head + TIM_HEADER_CLUT_OFFSET);
@@ -95,4 +95,26 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	printf("Image size: %u\n", image_size);
 
 	texture->is_valid = true;
+}
+
+uint16_t pack_TPage(uint16_t x, uint16_t y, uint16_t mode) {
+	uint16_t pageX = x/64;
+	uint16_t pageY = y/256;
+	return (pageX & 0xF) | ((pageY & 1) << 4) | ((mode & 0x3) << 7);
+}
+
+uint16_t pack_CLUT(uint16_t x, uint16_t y) {
+	return ((y & 0x1FF) << 6) | ((x >> 4) & 0x3F);
+}
+
+auto toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoint<> vfix, Texture &tex) {
+	int tex_width = tex.iw * 4; // assuming 4bpp
+	int tex_height = tex.ih;
+	int u = (ufix.raw() * tex_width) >> 12;
+	int v = (vfix.raw() * tex_height) >> 12;
+	// glTF V=0 is bottom; PS1 V=0 is top
+	v = tex_height - 1 - v;
+	if (u < 0) u = 0; if (u > 255) u = 255;
+	if (v < 0) v = 0; if (v > 255) v = 255;
+	return psyqo::PrimPieces::UVCoords{ uint8_t(u), uint8_t(v) };
 }

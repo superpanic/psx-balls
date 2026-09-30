@@ -1,4 +1,7 @@
 #pragma once
+#include "psyqo/primitives/common.hh"
+#include "psyqo/vector.hh"
+#include "psyqo/fixed-point.hh"
 #include <EASTL/string.h>
 
 #define TIM_HEADER_SIZE (16)
@@ -28,3 +31,6 @@ typedef struct Texture {
 } Texture;
 
 void parse_TIM(uint8_t *data, size_t size, Texture *texture);
+uint16_t pack_TPage(uint16_t x, uint16_t y, uint16_t mode);
+uint16_t pack_CLUT(uint16_t x, uint16_t y);
+auto toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoint<> vfix, Texture &tex);
