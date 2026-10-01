@@ -216,10 +216,16 @@ void CubeScene::frame() {
 
 	// will only run if the mesh has any indices to process
 	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
+
+		// inverse order
+		uint8_t ia = m_mesh.indices[i+2];
+		uint8_t ib = m_mesh.indices[i+1];
+		uint8_t ic = m_mesh.indices[i+0];
+
 		// load 3 vertices into the GTE.
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[m_mesh.indices[i+2]]); // count backwards because the GTE expects them in reverse order
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_mesh.vertices[m_mesh.indices[i+1]]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_mesh.vertices[m_mesh.indices[i+0]]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_mesh.vertices[ib]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_mesh.vertices[ic]);
 
 		// perform rtpt (perspective transformation) to the three verticies.
 		psyqo::GTE::Kernels::rtpt();
@@ -245,10 +251,27 @@ void CubeScene::frame() {
 		tri.primitive.pointA = projected[0];
 		tri.primitive.pointB = projected[1];
 		tri.primitive.pointC = projected[2];
+
+		// texture
+		tri.primitive.uvA = toUVCoords(m_mesh.texcoords[ia].x, m_mesh.texcoords[ia].y, m_texture);
+		tri.primitive.uvB = toUVCoords(m_mesh.texcoords[ib].x, m_mesh.texcoords[ib].y, m_texture);
+		auto uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
+		tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
+
+		tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx, m_texture.cy);
+		psyqo::Kernel::assert(m_texture.pmode <= 3, "Invalid pixel mode");
+		auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_texture.pmode);
+		tri.primitive.tpage.setPageX(m_texture.ix >> 6)
+				   .setPageY(m_texture.iy >> 8)
+				   .set(colorMode);
+
+
+
 		tri.primitive.setColor(m_color);
 		tri.primitive.setOpaque();
 
 		ot.insert(tri, zIndex);
+
 
 		// draw the edges of the triangle as lines
 		auto &lin0 = m_lines[i];
@@ -257,7 +280,7 @@ void CubeScene::frame() {
 		lin0.primitive.pointB.x = projected[1].x;
 		lin0.primitive.pointB.y = projected[1].y;
 		lin0.primitive.setColor(c_li); // black lines
-		ot.insert(lin0, 0); // insert the line into the ordering table with a zIndex of 0, so it will always be drawn on top of the triangle
+		ot.insert(lin0, 0); // zIndex of 0, always be drawn on top!
 
 		auto &lin1 = m_lines[i+1];
 		lin1.primitive.pointA.x = projected[1].x;
@@ -273,6 +296,7 @@ void CubeScene::frame() {
 		lin2.primitive.pointB.x = projected[0].x;
 		lin2.primitive.pointB.y = projected[0].y;
 		lin2.primitive.setColor(c_li);
+
 		ot.insert(lin2, 0);
 	}
 

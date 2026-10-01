@@ -107,13 +107,14 @@ uint16_t pack_CLUT(uint16_t x, uint16_t y) {
 	return ((y & 0x1FF) << 6) | ((x >> 4) & 0x3F);
 }
 
-auto toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoint<> vfix, Texture &tex) {
+psyqo::PrimPieces::UVCoords toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoint<> vfix, Texture &tex) {
 	int tex_width = tex.iw * 4; // assuming 4bpp
 	int tex_height = tex.ih;
 	int u = (ufix.raw() * tex_width) >> 12;
 	int v = (vfix.raw() * tex_height) >> 12;
 	// glTF V=0 is bottom; PS1 V=0 is top
 	v = tex_height - 1 - v;
+	// clamp 0...255
 	if (u < 0) u = 0; if (u > 255) u = 255;
 	if (v < 0) v = 0; if (v > 255) v = 255;
 	return psyqo::PrimPieces::UVCoords{ uint8_t(u), uint8_t(v) };
