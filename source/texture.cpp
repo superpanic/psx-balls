@@ -113,7 +113,7 @@ psyqo::PrimPieces::UVCoords toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoi
 	int u = (ufix.raw() * tex_width) >> 12;
 	int v = (vfix.raw() * tex_height) >> 12;
 	// glTF V=0 is bottom; PS1 V=0 is top
-	v = tex_height - 1 - v;
+//	v = tex_height - 1 - v;
 	// clamp 0...255
 	if (u < 0) u = 0; if (u > 255) u = 255;
 	if (v < 0) v = 0; if (v > 255) v = 255;

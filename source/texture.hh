@@ -28,6 +28,7 @@ typedef struct Texture {
 	uint32_t pixel_bytes;
 	uint32_t clut_bytes;
 	bool isValid() const { return is_valid; }
+	void enableDisplayArea() { tpage |= 0x0400; }
 } Texture;
 
 void parse_TIM(uint8_t *data, size_t size, Texture *texture);

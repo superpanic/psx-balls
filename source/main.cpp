@@ -173,6 +173,7 @@ void CubeScene::frame() {
 		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_texture);
 		psyqo::Kernel::assert(m_texture.isValid(), "Failed to load texture from TIM file");
 		m_texture.tpage = pack_TPage(m_texture.ix, m_texture.iy, m_texture.pmode);
+		m_texture.enableDisplayArea();
 		m_texture.clut_index = pack_CLUT(m_texture.cx, m_texture.cy);
 		gpu().uploadToVRAM(m_texture.pixels, {m_texture.ix, m_texture.iy, m_texture.iw, m_texture.ih});
 		gpu().uploadToVRAM(m_texture.clut, {m_texture.cx, m_texture.cy, m_texture.cw, m_texture.ch});
@@ -261,18 +262,12 @@ void CubeScene::frame() {
 			auto uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
 			tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
 		
-			printf("Triangle %d: ia=%d, ib=%d, ic=%d\n", t, ia, ib, ic);
-			printf("Projected points: A=(%d,%d) B=(%d,%d) C=(%d,%d)\n", projected[0].x, projected[0].y, projected[1].x, projected[1].y, projected[2].x, projected[2].y);
-			printf("UV coordinates: A=(%d,%d) B=(%d,%d) C=(%d,%d)\n", tri.primitive.uvA.u, tri.primitive.uvA.v, tri.primitive.uvB.u, tri.primitive.uvB.v, tri.primitive.uvC.u, tri.primitive.uvC.v);
-
-			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx, m_texture.cy);
+			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx >> 4, m_texture.cy);
 			psyqo::Kernel::assert(m_texture.pmode <= 3, "Invalid pixel mode");
 			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_texture.pmode);
 			tri.primitive.tpage.setPageX(m_texture.ix >> 6)
 					.setPageY(m_texture.iy >> 8)
 					.set(colorMode);
-
-			printf("Triangle %d: clutIndex=%d, tpage=(%d,%d)\n", t, tri.primitive.clutIndex, tri.primitive.tpage.getPageX(), tri.primitive.tpage.getPageY());
 		}
 
 		tri.primitive.setColor(m_color);
