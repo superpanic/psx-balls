@@ -214,13 +214,15 @@ void CubeScene::frame() {
 	// 4. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
 
+	static uint8_t ia, ib, ic;
+
 	// will only run if the mesh has any indices to process
 	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
 
 		// inverse order
-		uint8_t ia = m_mesh.indices[i+2];
-		uint8_t ib = m_mesh.indices[i+1];
-		uint8_t ic = m_mesh.indices[i+0];
+		ia = m_mesh.indices[i+2];
+		ib = m_mesh.indices[i+1];
+		ic = m_mesh.indices[i+0];
 
 		// load 3 vertices into the GTE.
 		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
@@ -252,26 +254,31 @@ void CubeScene::frame() {
 		tri.primitive.pointB = projected[1];
 		tri.primitive.pointC = projected[2];
 
-		// texture
-		tri.primitive.uvA = toUVCoords(m_mesh.texcoords[ia].x, m_mesh.texcoords[ia].y, m_texture);
-		tri.primitive.uvB = toUVCoords(m_mesh.texcoords[ib].x, m_mesh.texcoords[ib].y, m_texture);
-		auto uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
-		tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
+		if(m_texture.isValid()) {
+			// texture
+			tri.primitive.uvA = toUVCoords(m_mesh.texcoords[ia].x, m_mesh.texcoords[ia].y, m_texture);
+			tri.primitive.uvB = toUVCoords(m_mesh.texcoords[ib].x, m_mesh.texcoords[ib].y, m_texture);
+			auto uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
+			tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
+		
+			printf("Triangle %d: ia=%d, ib=%d, ic=%d\n", t, ia, ib, ic);
+			printf("Projected points: A=(%d,%d) B=(%d,%d) C=(%d,%d)\n", projected[0].x, projected[0].y, projected[1].x, projected[1].y, projected[2].x, projected[2].y);
+			printf("UV coordinates: A=(%d,%d) B=(%d,%d) C=(%d,%d)\n", tri.primitive.uvA.u, tri.primitive.uvA.v, tri.primitive.uvB.u, tri.primitive.uvB.v, tri.primitive.uvC.u, tri.primitive.uvC.v);
 
-		tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx, m_texture.cy);
-		psyqo::Kernel::assert(m_texture.pmode <= 3, "Invalid pixel mode");
-		auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_texture.pmode);
-		tri.primitive.tpage.setPageX(m_texture.ix >> 6)
-				   .setPageY(m_texture.iy >> 8)
-				   .set(colorMode);
+			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx, m_texture.cy);
+			psyqo::Kernel::assert(m_texture.pmode <= 3, "Invalid pixel mode");
+			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_texture.pmode);
+			tri.primitive.tpage.setPageX(m_texture.ix >> 6)
+					.setPageY(m_texture.iy >> 8)
+					.set(colorMode);
 
-
+			printf("Triangle %d: clutIndex=%d, tpage=(%d,%d)\n", t, tri.primitive.clutIndex, tri.primitive.tpage.getPageX(), tri.primitive.tpage.getPageY());
+		}
 
 		tri.primitive.setColor(m_color);
 		tri.primitive.setOpaque();
 
 		ot.insert(tri, zIndex);
-
 
 		// draw the edges of the triangle as lines
 		auto &lin0 = m_lines[i];
