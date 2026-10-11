@@ -9,8 +9,8 @@
 #define BIN_MAGIC 0x004E4942  // "BIN\0"
 #define GLTF_JSON_OFFSET (20)
 
-#define SMALL_MODEL_MAX_VERTICES (256)
-#define SMALL_MODEL_MAX_INDICES (256)
+#define SMALL_MODEL_MAX_VERTICES (1024)
+#define SMALL_MODEL_MAX_INDICES (1024)
 #define MAX_BUFFERVIEWS (8)
 
 #define SCALAR_SIZE  (1)
@@ -84,4 +84,5 @@ bool read_long(const uint8_t*& p, int32_t &out);
 void read_string(const char *&p, eastl::string &out);
 size_t get_accessor_size_from_string(const char *type);
 bool isValidComponentType(uint32_t componentType);
+static int32_t float32_bits_to_fixed12_faux(uint32_t bits);
 static int32_t float32_bits_to_fixed12(uint32_t bits);

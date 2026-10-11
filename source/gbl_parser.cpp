@@ -178,7 +178,7 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 			v.x = psyqo::FixedPoint<>(float32_bits_to_fixed12(bx), psyqo::FixedPoint<>::RAW);
 			v.y = psyqo::FixedPoint<>(float32_bits_to_fixed12(by), psyqo::FixedPoint<>::RAW);
 			v.z = psyqo::FixedPoint<>(float32_bits_to_fixed12(bz), psyqo::FixedPoint<>::RAW);
-			printf("vertex[%d]: x=%d, y=%d, z=%d\n", i, v.x.raw(), v.y.raw(), v.z.raw());
+			printf("vertex[%d]: (%d) x=%d, y=%d, z=%d\n", i, bx, v.x.raw(), v.y.raw(), v.z.raw());
 		} else {
 			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for vertices");
 		}
@@ -216,7 +216,7 @@ bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
 		}
 	}
 	mesh->num_indices = accessors[3].count;
-
+	printf("num_indices: %u\n", mesh->num_indices);
 	return true;
 }
 
@@ -240,7 +240,7 @@ const char *find_key(const char *json, const char *key) {
 
 
 // Convert little-endian IEEE-754 binary32 bits → FixedPoint raw value (scale 4096)
-static int32_t float32_bits_to_fixed12(uint32_t bits) {
+static int32_t float32_bits_to_fixed12_faux(uint32_t bits) {
 	const uint32_t sign     = bits >> 31;
 	const int32_t  exponent = int32_t((bits >> 23) & 0xFF) - 127; // unbiased
 	uint32_t       mantissa = (bits & 0x7FFFFF);
@@ -277,6 +277,36 @@ static int32_t float32_bits_to_fixed12(uint32_t bits) {
 	}
 
 	return sign ? -value : value;
+}
+
+static int32_t float32_bits_to_fixed12(uint32_t bits) {
+    const uint32_t sign     = bits >> 31;
+    const int32_t  exponent = int32_t((bits >> 23) & 0xFF) - 127;
+    uint32_t       mantissa = (bits & 0x7FFFFF) | 0x800000; // 24 bits
+
+    if (exponent == -127) return 0;                     // zero / denormal
+    if (exponent >= 128)  return sign ? int32_t(0x80000000) : 0x7FFFFFFF;
+
+    // result = mantissa * 2^(exponent - 11)
+    const int32_t shift = exponent - 11;
+
+    // 24-bit mantissa << 8 already hits bit 31. Anything >= 8 cannot fit
+    // in a positive int32, so saturate.
+    if (shift >= 8) {
+        return sign ? int32_t(0x80000000) : 0x7FFFFFFF;
+    }
+
+    uint32_t value;
+    if (shift >= 0) {
+        value = mantissa << shift;          // max 24+7 = 31 bits, safe in uint32
+    } else {
+        const int32_t r = -shift;
+        if (r >= 24) return 0;
+        value = mantissa >> r;
+    }
+
+    // value is non-negative and <= 0x7FFFFFFF here
+    return sign ? -int32_t(value) : int32_t(value);
 }
 
 // reads a string from the JSON, advancing the pointer past it. The string is expected to be enclosed in double quotes.

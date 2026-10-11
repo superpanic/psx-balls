@@ -20,11 +20,13 @@
 #include "cd.hh"
 #include "texture.hh"
 
+#define DEBUG_DRAW_EDGES
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
 
 static constexpr unsigned ORDERING_TABLE_SIZE = 2048;
+static constexpr unsigned MAX_TRIANGLES = 512;
 
 static constexpr psyqo::Matrix33 identity = {{
 	{1.0_fp, 0.0_fp, 0.0_fp},
@@ -58,13 +60,16 @@ class CubeScene final : public psyqo::Scene {
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of triangles used to draw the object
 //		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>, 64> m_triangles;
-		// define an array of line primitives to draw the object
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, 64*3> m_lines;
-		// line color
-		static constexpr psyqo::Color c_li = {.r = 0, .g = 0, .b = 0};
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>, MAX_TRIANGLES> m_triangles;
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
+		
+#ifdef DEBUG_DRAW_EDGES
+		// define an array of line primitives to draw the object
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, MAX_TRIANGLES*3> m_lines;
+		// line color
+		static constexpr psyqo::Color c_li = {.r = 0, .g = 0, .b = 0};
+#endif
 
 	private:
 		CD m_cdrom;
@@ -117,7 +122,7 @@ void CubeScene::start(StartReason reason) {
 	alignas(4) uint8_t model_buffer[CD::MAX_FILE_SIZE];
 	alignas(4) uint8_t texture_buffer[CD::MAX_FILE_SIZE];
 
-	m_load_model.setFilename("MILK.GLB;1");
+	m_load_model.setFilename("BALL.GLB;1");
 	m_load_model.buffer = model_buffer;
 	m_load_model.max_size = CD::MAX_FILE_SIZE;
 	m_load_model.loaded_size = 0;
@@ -259,7 +264,7 @@ void CubeScene::frame() {
 			// texture
 			tri.primitive.uvA = toUVCoords(m_mesh.texcoords[ia].x, m_mesh.texcoords[ia].y, m_texture);
 			tri.primitive.uvB = toUVCoords(m_mesh.texcoords[ib].x, m_mesh.texcoords[ib].y, m_texture);
-			auto uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
+			auto          uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
 			tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
 		
 			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx >> 4, m_texture.cy);
@@ -275,6 +280,7 @@ void CubeScene::frame() {
 
 		ot.insert(tri, zIndex);
 
+#ifdef DEBUG_DRAW_EDGES
 		// draw the edges of the triangle as lines
 		auto &lin0 = m_lines[i];
 		lin0.primitive.pointA.x = projected[0].x;
@@ -300,6 +306,8 @@ void CubeScene::frame() {
 		lin2.primitive.setColor(c_li);
 
 		ot.insert(lin2, 0);
+#endif // DEBUG_DRAW_EDGES
+
 	}
 
 	gpu().chain(ot);
