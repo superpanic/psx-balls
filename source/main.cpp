@@ -20,7 +20,7 @@
 #include "cd.hh"
 #include "texture.hh"
 
-#define DEBUG_DRAW_EDGES
+//#define DEBUG_DRAW_EDGES
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -34,7 +34,7 @@ static constexpr psyqo::Matrix33 identity = {{
 	{0.0_fp, 0.0_fp, 1.0_fp},
 }};
 
-class Cube final : public psyqo::Application {
+class Game final : public psyqo::Application {
 	void prepare() override;
 	void createScene() override;
 
@@ -43,7 +43,7 @@ class Cube final : public psyqo::Application {
 
 };
 
-class CubeScene final : public psyqo::Scene {
+class GameScene final : public psyqo::Scene {
 	public:
 		void start(StartReason reason) override;
 		void frame() override;
@@ -80,10 +80,10 @@ class CubeScene final : public psyqo::Scene {
 		psyqo::Color m_color;
 };
 
-static Cube cube;
-static CubeScene cubeScene;
+static Game game;
+static GameScene gameScene;
 
-void Cube::prepare() {
+void Game::prepare() {
 	psyqo::GPU::Configuration config;
 	config.set(psyqo::GPU::Resolution::W320)
 	    .set(psyqo::GPU::VideoMode::AUTO)
@@ -93,11 +93,11 @@ void Cube::prepare() {
 	gpu().initialize(config);
 }
 
-void Cube::createScene() { 
-	pushScene(&cubeScene); 
+void Game::createScene() { 
+	pushScene(&gameScene); 
 }
 
-void CubeScene::start(StartReason reason) {
+void GameScene::start(StartReason reason) {
 	// clear the translation registers
 	psyqo::GTE::clear<psyqo::GTE::Register::TRX, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRY, psyqo::GTE::Unsafe>();
@@ -114,10 +114,8 @@ void CubeScene::start(StartReason reason) {
 	// set the scaling for Z averaging.
 //	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
 //	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
-
-	// agressive otz compression, but larger world space
-	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50);
-	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40);
+	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50); // agressive otz compression, but larger world space
+	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40); // agressive otz compression, but larger world space
 
 	alignas(4) uint8_t model_buffer[CD::MAX_FILE_SIZE];
 	alignas(4) uint8_t texture_buffer[CD::MAX_FILE_SIZE];
@@ -153,7 +151,7 @@ void CubeScene::start(StartReason reason) {
 	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
 }
 
-void CubeScene::frame() {
+void GameScene::frame() {
 	m_cdrom.advance();   // Drive the state machine
 
 /*
@@ -201,26 +199,24 @@ void CubeScene::frame() {
 	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
 
 	// 1. Spinning rotations (X then Y)
-	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, cube.m_trig);
-
-	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::Y, cube.m_trig);
-
+	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, game.m_trig);
+	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::Y, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotY, &transform);
 
 	// 2. Optional Z rotation (currently identity)
-	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(0, psyqo::SoftMath::Axis::Z, cube.m_trig);
+	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(0, psyqo::SoftMath::Axis::Z, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotZ, &transform);
 
 	// 3. Force the plane to face the camera (90° around X)
 	//    Apply this *after* the spinning rotations so the plane stays facing us while it spins.
-	auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, cube.m_trig);
+	auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, game.m_trig);
 
 	psyqo::SoftMath::multiplyMatrix33(faceCamera, transform, &transform);
 
 	// 4. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
 
-	static uint8_t ia, ib, ic;
+	static uint16_t ia, ib, ic;
 
 	// will only run if the mesh has any indices to process
 	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
@@ -315,5 +311,5 @@ void CubeScene::frame() {
 }
 
 int main() { 
-	return cube.run(); 
+	return game.run(); 
 }

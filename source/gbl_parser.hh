@@ -9,7 +9,7 @@
 #define BIN_MAGIC 0x004E4942  // "BIN\0"
 #define GLTF_JSON_OFFSET (20)
 
-#define SMALL_MODEL_MAX_VERTICES (1024)
+#define SMALL_MODEL_MAX_VERTICES (512)
 #define SMALL_MODEL_MAX_INDICES (1024)
 #define MAX_BUFFERVIEWS (8)
 
@@ -42,7 +42,7 @@ const static uint32_t componentTypes[] = {
 typedef struct Mesh {
 	eastl::string name;
 	psyqo::Vec3 vertices[SMALL_MODEL_MAX_VERTICES];
-	uint8_t indices[SMALL_MODEL_MAX_INDICES];
+	uint16_t indices[SMALL_MODEL_MAX_INDICES];
 	psyqo::Vec2 texcoords[SMALL_MODEL_MAX_VERTICES];
 	unsigned num_vertices = 0;
 	unsigned num_texcoords = 0;
