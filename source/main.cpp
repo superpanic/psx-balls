@@ -20,7 +20,7 @@
 #include "cd.hh"
 #include "texture.hh"
 
-//#define DEBUG_DRAW_EDGES
+#define DEBUG_DRAW_EDGES
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -43,7 +43,7 @@ class Game final : public psyqo::Application {
 
 };
 
-class GameScene final : public psyqo::Scene {
+class MilkScene final : public psyqo::Scene {
 	public:
 		void start(StartReason reason) override;
 		void frame() override;
@@ -59,20 +59,18 @@ class GameScene final : public psyqo::Scene {
 		// otherwise they'll draw over our beautiful cube.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of triangles used to draw the object
-//		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Triangle>, 64> m_triangles;
 		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>, MAX_TRIANGLES> m_triangles;
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
 		
 #ifdef DEBUG_DRAW_EDGES
 		// define an array of line primitives to draw the object
-		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, MAX_TRIANGLES*3> m_lines;
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, MAX_TRIANGLES * 3> m_lines;
 		// line color
 		static constexpr psyqo::Color c_li = {.r = 0, .g = 0, .b = 0};
 #endif
 
 	private:
-		CD m_cdrom;
 		Mesh m_mesh;
 		Texture m_texture;
 		LoadRequest m_load_model;
@@ -80,8 +78,11 @@ class GameScene final : public psyqo::Scene {
 		psyqo::Color m_color;
 };
 
+static CD cdrom;
 static Game game;
-static GameScene gameScene;
+static MilkScene milkScene;
+//static FreshScene freshScene;
+//static BallScene ballScene;
 
 void Game::prepare() {
 	psyqo::GPU::Configuration config;
@@ -94,10 +95,10 @@ void Game::prepare() {
 }
 
 void Game::createScene() { 
-	pushScene(&gameScene); 
+	pushScene(&milkScene); 
 }
 
-void GameScene::start(StartReason reason) {
+void MilkScene::start(StartReason reason) {
 	// clear the translation registers
 	psyqo::GTE::clear<psyqo::GTE::Register::TRX, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRY, psyqo::GTE::Unsafe>();
@@ -146,13 +147,13 @@ void GameScene::start(StartReason reason) {
 		}
 	};
 
-	m_cdrom.request(m_load_model);
-	m_cdrom.request(m_load_texture);
+	cdrom.request(m_load_model);
+	cdrom.request(m_load_texture);
 	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
 }
 
-void GameScene::frame() {
-	m_cdrom.advance();   // Drive the state machine
+void MilkScene::frame() {
+	cdrom.advance();   // Drive the state machine
 
 /*
 	if (m_cdrom.isBusy()) {
