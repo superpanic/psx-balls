@@ -12,6 +12,7 @@
 #include "psyqo/trigonometry.hh"
 #include <psyqo/xprintf.h>
 #include <EASTL/string.h>
+#include "psyqo/font.hh"
 
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +22,7 @@
 #include "texture.hh"
 
 #define DEBUG_DRAW_EDGES
+#define INCLUDE_EXTRA_SCENES
 
 using namespace psyqo::fixed_point_literals;
 using namespace psyqo::trig_literals;
@@ -40,10 +42,10 @@ class Game final : public psyqo::Application {
 
 	public:
 		psyqo::Trig<> m_trig;
-
+		psyqo::Font<> m_font;
 };
 
-class MilkScene final : public psyqo::Scene {
+class GameScene final : public psyqo::Scene {
 	public:
 		void start(StartReason reason) override;
 		void frame() override;
@@ -55,8 +57,9 @@ class MilkScene final : public psyqo::Scene {
 		// time.
 		psyqo::OrderingTable<ORDERING_TABLE_SIZE> m_ots[2];
 
-		// Since we're using an ordering table, we need to sort fill commands as well,
-		// otherwise they'll draw over our beautiful cube.
+		// Since we're using an ordering table, 
+		// we need to sort fill commands,
+		// otherwise they'll draw over everything.
 		psyqo::Fragments::SimpleFragment<psyqo::Prim::FastFill> m_clear[2];
 		// define an array of triangles used to draw the object
 		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::TexturedTriangle>, MAX_TRIANGLES> m_triangles;
@@ -78,11 +81,35 @@ class MilkScene final : public psyqo::Scene {
 		psyqo::Color m_color;
 };
 
+#ifdef INCLUDE_EXTRA_SCENES
+	class TitleScene final : public psyqo::Scene {
+		public:
+			void start(StartReason reason) override;
+			void frame() override;
+	};
+
+	class PauseScene final : public psyqo::Scene {
+		public:
+			void start(StartReason reason) override;
+			void frame() override;
+	};
+
+	class LoadScene final : public psyqo::Scene {
+		public:
+			void start(StartReason reason) override;
+			void frame() override;
+	};
+#endif
+
 static CD cdrom;
 static Game game;
-static MilkScene milkScene;
-//static FreshScene freshScene;
-//static BallScene ballScene;
+static GameScene gameScene;
+
+#ifdef INCLUDE_EXTRA_SCENES
+ static TitleScene titleScene;
+ static PauseScene pauseScene;
+ static LoadScene loadScene;
+#endif
 
 void Game::prepare() {
 	psyqo::GPU::Configuration config;
@@ -95,10 +122,20 @@ void Game::prepare() {
 }
 
 void Game::createScene() { 
-	pushScene(&milkScene); 
+	m_font.uploadSystemFont(gpu());
+	pushScene(&gameScene);
 }
 
-void MilkScene::start(StartReason reason) {
+#ifdef INCLUDE_EXTRA_SCENES
+ void TitleScene::start(StartReason reason) {}
+ void TitleScene::frame() {}
+ void PauseScene::start(StartReason reason) {}
+ void PauseScene::frame() {}
+ void LoadScene::start(StartReason reason) {}
+ void LoadScene::frame() {}
+#endif
+
+void GameScene::start(StartReason reason) {
 	// clear the translation registers
 	psyqo::GTE::clear<psyqo::GTE::Register::TRX, psyqo::GTE::Unsafe>();
 	psyqo::GTE::clear<psyqo::GTE::Register::TRY, psyqo::GTE::Unsafe>();
@@ -152,7 +189,7 @@ void MilkScene::start(StartReason reason) {
 	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
 }
 
-void MilkScene::frame() {
+void GameScene::frame() {
 	cdrom.advance();   // Drive the state machine
 
 /*
@@ -306,6 +343,8 @@ void MilkScene::frame() {
 #endif // DEBUG_DRAW_EDGES
 
 	}
+
+	game.m_font.print(gpu(), "Hello, PSX!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 0});
 
 	gpu().chain(ot);
 	m_rot += psyqo::Angle(0.01);
