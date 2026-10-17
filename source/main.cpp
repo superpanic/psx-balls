@@ -44,7 +44,6 @@ class Game final : public psyqo::Application {
 	public:
 		psyqo::Trig<> m_trig;
 		psyqo::Font<> m_font;
-		psyqo::SimplePad m_pad;
 };
 
 class GameScene final : public psyqo::Scene {
@@ -52,7 +51,9 @@ class GameScene final : public psyqo::Scene {
 		void start(StartReason reason) override;
 		void frame() override;
 
-		psyqo::Angle m_rot = 0;
+		psyqo::Angle m_rotx = 0;
+		psyqo::Angle m_roty = 0;
+		psyqo::Angle m_rotz = 0;
 
 		// We need to create 2 OrderingTable objects since we can't reuse a single one
 		// for both framebuffers, as the previous one may not finish transfering in
@@ -88,6 +89,7 @@ class GameScene final : public psyqo::Scene {
 		public:
 			void start(StartReason reason) override;
 			void frame() override;
+			void teardown(TearDownReason reason) override;
 	};
 
 	class PauseScene final : public psyqo::Scene {
@@ -104,6 +106,7 @@ class GameScene final : public psyqo::Scene {
 #endif
 
 static CD cdrom;
+static psyqo::SimplePad gamePad;
 static Game game;
 static GameScene gameScene;
 
@@ -125,29 +128,33 @@ void Game::prepare() {
 
 void Game::createScene() { 
 	m_font.uploadSystemFont(gpu());
-//	pushScene(&gameScene);
-	m_pad.initialize();
+	gamePad.initialize();
 	pushScene(&titleScene);
 }
 
 #ifdef INCLUDE_EXTRA_SCENES
- void TitleScene::start(StartReason reason) {
+void TitleScene::start(StartReason reason) {
 	printf("TitleScene started\n");
- }
+}
+
  void TitleScene::frame() {
 	gpu().clear({.r = 0, .g = 0, .b = 0} );
 	auto pad = psyqo::SimplePad::Pad1;
-	if(game.m_pad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
-		game.m_font.print(gpu(), "Button pressed!", {{.x = 10, .y = 30}}, {.r = 255, .g = 255, .b = 255});
+	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
+		pushScene(&gameScene);
 	}
-	game.m_font.print(gpu(), "Loading!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
+	game.m_font.print(gpu(), "Press X to start!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
  }
 
- void PauseScene::start(StartReason reason) {}
- void PauseScene::frame() {}
+void TitleScene::teardown(TearDownReason reason) {
+	printf("TitleScene torn down\n");
+}
 
- void LoadScene::start(StartReason reason) {}
- void LoadScene::frame() {}
+void PauseScene::start(StartReason reason) {}
+void PauseScene::frame() {}
+
+void LoadScene::start(StartReason reason) {}
+void LoadScene::frame() {}
 #endif
 
 void GameScene::start(StartReason reason) {
@@ -235,6 +242,24 @@ void GameScene::frame() {
 		gpu().uploadToVRAM(m_texture.clut, {m_texture.cx, m_texture.cy, m_texture.cw, m_texture.ch});
 	}
 
+	auto pad = psyqo::SimplePad::Pad1;
+	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Left)) { // (press right arrow)
+		m_roty -= psyqo::Angle(0.01); // turns right
+		printf("Left!\n");
+	}
+	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Right)) { // (press down arrow)
+		m_rotx -= psyqo::Angle(0.01); // rolls backward
+		printf("Right!\n");
+	}
+	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Up)) { // (press up arrow)
+		m_rotx += psyqo::Angle(0.01); // rolls forward
+		printf("Up!\n");
+	}
+	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Down)) { // (press left arrow)
+		m_roty += psyqo::Angle(0.01); // turns left
+		printf("Down!\n");
+	}
+
 	// holding the projected 2D results of the 3D vertices, 
 	// which will be used to draw a polygon on screen
 	eastl::array<psyqo::Vertex, 3> projected;
@@ -252,12 +277,12 @@ void GameScene::frame() {
 	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
 
 	// 1. Spinning rotations (X then Y)
-	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::X, game.m_trig);
-	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_rot, psyqo::SoftMath::Axis::Y, game.m_trig);
+	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rotx, psyqo::SoftMath::Axis::X, game.m_trig);
+	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_roty, psyqo::SoftMath::Axis::Y, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotY, &transform);
 
 	// 2. Optional Z rotation (currently identity)
-	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(0, psyqo::SoftMath::Axis::Z, game.m_trig);
+	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(m_rotz, psyqo::SoftMath::Axis::Z, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotZ, &transform);
 
 	// 3. Force the plane to face the camera (90° around X)
@@ -359,10 +384,9 @@ void GameScene::frame() {
 
 	}
 
-	game.m_font.print(gpu(), "Hello, PSX!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 0});
+	game.m_font.print(gpu(), "Hello!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 0});
 
 	gpu().chain(ot);
-	m_rot += psyqo::Angle(0.01);
 }
 
 int main() { 
