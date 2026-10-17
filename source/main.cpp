@@ -13,6 +13,7 @@
 #include <psyqo/xprintf.h>
 #include <EASTL/string.h>
 #include "psyqo/font.hh"
+#include "psyqo/simplepad.hh"
 
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,7 @@ class Game final : public psyqo::Application {
 	public:
 		psyqo::Trig<> m_trig;
 		psyqo::Font<> m_font;
+		psyqo::SimplePad m_pad;
 };
 
 class GameScene final : public psyqo::Scene {
@@ -117,20 +119,33 @@ void Game::prepare() {
 	    .set(psyqo::GPU::VideoMode::AUTO)
 	    .set(psyqo::GPU::ColorMode::C15BITS)
 	    .set(psyqo::GPU::Interlace::PROGRESSIVE);
-
 	gpu().initialize(config);
+
 }
 
 void Game::createScene() { 
 	m_font.uploadSystemFont(gpu());
-	pushScene(&gameScene);
+//	pushScene(&gameScene);
+	m_pad.initialize();
+	pushScene(&titleScene);
 }
 
 #ifdef INCLUDE_EXTRA_SCENES
- void TitleScene::start(StartReason reason) {}
- void TitleScene::frame() {}
+ void TitleScene::start(StartReason reason) {
+	printf("TitleScene started\n");
+ }
+ void TitleScene::frame() {
+	gpu().clear({.r = 0, .g = 0, .b = 0} );
+	auto pad = psyqo::SimplePad::Pad1;
+	if(game.m_pad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
+		game.m_font.print(gpu(), "Button pressed!", {{.x = 10, .y = 30}}, {.r = 255, .g = 255, .b = 255});
+	}
+	game.m_font.print(gpu(), "Loading!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
+ }
+
  void PauseScene::start(StartReason reason) {}
  void PauseScene::frame() {}
+
  void LoadScene::start(StartReason reason) {}
  void LoadScene::frame() {}
 #endif
