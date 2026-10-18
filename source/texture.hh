@@ -12,6 +12,9 @@
 #define TIM_HEADER_FLAG_OFFSET (4)
 #define TIM_HEADER_CLUT_OFFSET (8)
 
+#define MAX_PIXEL_DATA_SIZE (64*1024)
+#define MAX_CLUT_DATA_SIZE (64)
+
 typedef struct Texture {
 	bool is_valid = false;
 	eastl::string name;
@@ -23,10 +26,8 @@ typedef struct Texture {
 	int16_t iw, ih;         // image size in 16-bit VRAM units (not pixels)
 	uint16_t tpage;          // packed once after parse
 	uint16_t clut_index;     // packed once after parse
-	const uint16_t *pixels;  // points at image payload
-	const uint16_t *clut;    // points at CLUT payload (or nullptr)
-	uint32_t pixel_bytes;
-	uint32_t clut_bytes;
+	alignas(4) uint16_t pixel_bytes[MAX_PIXEL_DATA_SIZE];
+	alignas(4) uint16_t clut_bytes[MAX_CLUT_DATA_SIZE];
 	bool isValid() const { return is_valid; }
 	void enableDisplayArea() { tpage |= 0x0400; }
 } Texture;

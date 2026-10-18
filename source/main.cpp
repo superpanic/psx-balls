@@ -77,8 +77,7 @@ class GameScene final : public psyqo::Scene {
 #endif
 
 	private:
-		Mesh m_mesh;
-		Texture m_texture;
+		Object m_object;
 		LoadRequest m_load_model;
 		LoadRequest m_load_texture;
 		psyqo::Color m_color;
@@ -109,6 +108,9 @@ static CD cdrom;
 static psyqo::SimplePad gamePad;
 static Game game;
 static GameScene gameScene;
+
+alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
+alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
 
 #ifdef INCLUDE_EXTRA_SCENES
  static TitleScene titleScene;
@@ -177,9 +179,6 @@ void GameScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50); // agressive otz compression, but larger world space
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40); // agressive otz compression, but larger world space
 
-	alignas(4) uint8_t model_buffer[CD::MAX_FILE_SIZE];
-	alignas(4) uint8_t texture_buffer[CD::MAX_FILE_SIZE];
-
 	m_load_model.setFilename("BALL.GLB;1");
 	m_load_model.buffer = model_buffer;
 	m_load_model.max_size = CD::MAX_FILE_SIZE;
@@ -225,21 +224,23 @@ void GameScene::frame() {
 	}
 */
 
-	if (!m_mesh.isValid() && m_load_model.loaded_size > 0) {
+	if (!m_object.mesh.isValid() && m_load_model.loaded_size > 0) {
 		// load the cube mesh from the GLB file
-		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_mesh);
-		psyqo::Kernel::assert(m_mesh.isValid(), "Failed to load Cube mesh from GLB file");
+		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_object.mesh);
+		psyqo::Kernel::assert(m_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
 	}
 
 	// load the texture from the TIM file
-	if (!m_texture.isValid() && m_load_texture.loaded_size > 0) {
-		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_texture);
-		psyqo::Kernel::assert(m_texture.isValid(), "Failed to load texture from TIM file");
-		m_texture.tpage = pack_TPage(m_texture.ix, m_texture.iy, m_texture.pmode);
-		m_texture.enableDisplayArea();
-		m_texture.clut_index = pack_CLUT(m_texture.cx, m_texture.cy);
-		gpu().uploadToVRAM(m_texture.pixels, {m_texture.ix, m_texture.iy, m_texture.iw, m_texture.ih});
-		gpu().uploadToVRAM(m_texture.clut, {m_texture.cx, m_texture.cy, m_texture.cw, m_texture.ch});
+	if (!m_object.texture.isValid() && m_load_texture.loaded_size > 0) {
+		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_object.texture);
+		psyqo::Kernel::assert(m_object.texture.isValid(), "Failed to load texture from TIM file");
+		m_object.texture.tpage = pack_TPage(m_object.texture.ix, m_object.texture.iy, m_object.texture.pmode);
+		m_object.texture.enableDisplayArea();
+		m_object.texture.clut_index = pack_CLUT(m_object.texture.cx, m_object.texture.cy);
+		gpu().uploadToVRAM(m_object.texture.pixel_bytes, {m_object.texture.ix, m_object.texture.iy, m_object.texture.iw, m_object.texture.ih});
+		if(m_object.texture.has_clut) {
+			gpu().uploadToVRAM(m_object.texture.clut_bytes, {m_object.texture.cx, m_object.texture.cy, m_object.texture.cw, m_object.texture.ch});
+		}
 	}
 
 	auto pad = psyqo::SimplePad::Pad1;
@@ -297,17 +298,17 @@ void GameScene::frame() {
 	static uint16_t ia, ib, ic;
 
 	// will only run if the mesh has any indices to process
-	for(int i=0, t=0; i<m_mesh.num_indices; i+=3, t++) {
+	for(int i=0, t=0; i<m_object.mesh.num_indices; i+=3, t++) {
 
 		// inverse order
-		ia = m_mesh.indices[i+2];
-		ib = m_mesh.indices[i+1];
-		ic = m_mesh.indices[i+0];
+		ia = m_object.mesh.indices[i+2];
+		ib = m_object.mesh.indices[i+1];
+		ic = m_object.mesh.indices[i+0];
 
 		// load 3 vertices into the GTE.
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_mesh.vertices[ib]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_mesh.vertices[ic]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_object.mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_object.mesh.vertices[ib]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_object.mesh.vertices[ic]);
 
 		// perform rtpt (perspective transformation) to the three verticies.
 		psyqo::GTE::Kernels::rtpt();
@@ -334,18 +335,18 @@ void GameScene::frame() {
 		tri.primitive.pointB = projected[1];
 		tri.primitive.pointC = projected[2];
 
-		if(m_texture.isValid()) {
+		if(m_object.texture.isValid()) {
 			// texture
-			tri.primitive.uvA = toUVCoords(m_mesh.texcoords[ia].x, m_mesh.texcoords[ia].y, m_texture);
-			tri.primitive.uvB = toUVCoords(m_mesh.texcoords[ib].x, m_mesh.texcoords[ib].y, m_texture);
-			auto          uvC = toUVCoords(m_mesh.texcoords[ic].x, m_mesh.texcoords[ic].y, m_texture);
+			tri.primitive.uvA = toUVCoords(m_object.mesh.texcoords[ia].x, m_object.mesh.texcoords[ia].y, m_object.texture);
+			tri.primitive.uvB = toUVCoords(m_object.mesh.texcoords[ib].x, m_object.mesh.texcoords[ib].y, m_object.texture);
+			auto          uvC = toUVCoords(m_object.mesh.texcoords[ic].x, m_object.mesh.texcoords[ic].y, m_object.texture);
 			tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
 		
-			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_texture.cx >> 4, m_texture.cy);
-			psyqo::Kernel::assert(m_texture.pmode <= 3, "Invalid pixel mode");
-			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_texture.pmode);
-			tri.primitive.tpage.setPageX(m_texture.ix >> 6)
-					.setPageY(m_texture.iy >> 8)
+			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_object.texture.cx >> 4, m_object.texture.cy);
+			psyqo::Kernel::assert(m_object.texture.pmode <= 3, "Invalid pixel mode");
+			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_object.texture.pmode);
+			tri.primitive.tpage.setPageX(m_object.texture.ix >> 6)
+					.setPageY(m_object.texture.iy >> 8)
 					.set(colorMode);
 		}
 

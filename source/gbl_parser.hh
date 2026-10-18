@@ -51,8 +51,8 @@ typedef struct Mesh {
 } Mesh;
 
 typedef struct Object {
-	Mesh *mesh;
-	Texture *texture;
+	Mesh mesh;
+	Texture texture;
 	psyqo::Vec3 position;
 	psyqo::Vec3 rotation;
 	psyqo::Vec3 scale;

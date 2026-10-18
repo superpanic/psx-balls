@@ -66,9 +66,13 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 		clut_data += 2;
 		texture->ch = READ_LE16(clut_data);
 		clut_data += 2;
-		texture->clut = (const uint16_t *)clut_data;
-	} else {
-		texture->clut = nullptr;
+	}
+
+	// copy CLUT data to the texture's internal buffer
+	if(texture->has_clut) {
+		for (uint32_t i = 0; i < texture->cw * texture->ch; ++i) {
+			texture->clut_bytes[i] = ((uint16_t*)clut_data)[i];
+		}
 	}
 
 	printf("CLUT X: %u\n", texture->cx);
@@ -86,7 +90,11 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	image_data += 2;
 	texture->ih = READ_LE16(image_data);
 	image_data += 2;
-	texture->pixels = (const uint16_t *)image_data;
+
+	// copy pixel data to the texture's internal buffer
+	for (uint32_t i = 0; i < image_size / 2; ++i) {
+		texture->pixel_bytes[i] = ((uint16_t*)image_data)[i];
+	}
 
 	printf("Image X: %u\n", texture->ix);
 	printf("Image Y: %u\n", texture->iy);
