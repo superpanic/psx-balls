@@ -55,7 +55,7 @@ typedef struct Object {
 	Texture texture;
 	psyqo::Vec3 position;
 	psyqo::Vec3 rotation;
-	psyqo::Vec3 scale;
+	psyqo::Vec3 scale = {1.0f, 1.0f, 1.0f};
 } Object;
 
 typedef struct Accessor {

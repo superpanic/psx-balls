@@ -69,6 +69,10 @@ class GameScene final : public psyqo::Scene {
 		// background color for the clear command
 		static constexpr psyqo::Color c_bg = {.r = 63, .g = 63, .b = 63};
 		
+		// object axis
+		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, 3> m_axis;
+		static constexpr psyqo::Color c_ax = {.r = 255, .g = 0, .b = 0};
+
 #ifdef DEBUG_DRAW_EDGES
 		// define an array of line primitives to draw the object
 		eastl::array<psyqo::Fragments::SimpleFragment<psyqo::Prim::Line>, MAX_TRIANGLES * 3> m_lines;
@@ -288,9 +292,8 @@ void GameScene::frame() {
 
 	// 3. Force the plane to face the camera (90° around X)
 	//    Apply this *after* the spinning rotations so the plane stays facing us while it spins.
-	auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, game.m_trig);
-
-	psyqo::SoftMath::multiplyMatrix33(faceCamera, transform, &transform);
+	//auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, game.m_trig);
+	//psyqo::SoftMath::multiplyMatrix33(faceCamera, transform, &transform);
 
 	// 4. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
@@ -354,6 +357,9 @@ void GameScene::frame() {
 		tri.primitive.setOpaque();
 
 		ot.insert(tri, zIndex);
+
+		// draw object axis (for debugging)
+		
 
 #ifdef DEBUG_DRAW_EDGES
 		// draw the edges of the triangle as lines
