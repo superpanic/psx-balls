@@ -30,7 +30,6 @@ class CD {
 		bool isBusy() const { return m_state != State::Idle && m_state != State::Error; }
 		bool isReady() const { return m_state == State::Idle; }
 		bool hasError() const { return m_state == State::Error; }
-		uint8_t *getFileBuffer() { return m_file_buffer; }
 
 		// making internal ISO9660Parser and CDRomDevice available for debugging purposes
 		const psyqo::ISO9660Parser::DirEntry &getEntry() const { return m_entry; }
@@ -55,7 +54,6 @@ class CD {
 		LoadRequest m_loadRequestQueue[MAX_QUEUE_SIZE];
 		unsigned m_queueCount = 0;
 
-		alignas(4) uint8_t m_file_buffer[MAX_FILE_SIZE];
 		psyqo::CDRomDevice m_cdrom;
 		psyqo::ISO9660Parser m_parser;
 		eastl::string m_filename;
