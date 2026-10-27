@@ -81,9 +81,6 @@ class GameScene final : public psyqo::Scene {
 #endif
 
 	private:
-		Object m_object;
-		LoadRequest m_load_model;
-		LoadRequest m_load_texture;
 		psyqo::Color m_color;
 };
 
@@ -108,19 +105,23 @@ class GameScene final : public psyqo::Scene {
 	};
 #endif
 
-static CD cdrom;
-static psyqo::SimplePad gamePad;
+
 static Game game;
 static GameScene gameScene;
-
-alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
-alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
-
 #ifdef INCLUDE_EXTRA_SCENES
  static TitleScene titleScene;
  static PauseScene pauseScene;
  static LoadScene loadScene;
 #endif
+
+static CD cdrom;
+static psyqo::SimplePad gamePad;
+
+alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
+alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
+static LoadRequest m_load_model;
+static LoadRequest m_load_texture;
+static Object m_object;
 
 void Game::prepare() {
 	psyqo::GPU::Configuration config;
@@ -141,16 +142,73 @@ void Game::createScene() {
 #ifdef INCLUDE_EXTRA_SCENES
 void TitleScene::start(StartReason reason) {
 	printf("TitleScene started\n");
+	
+	m_load_model.setFilename("BALL.GLB;1");
+	m_load_model.buffer = model_buffer;
+	m_load_model.max_size = CD::MAX_FILE_SIZE;
+	m_load_model.loaded_size = 0;
+	m_load_model.callback = [this](bool success, uint32_t size) {
+		if(success) {
+			m_load_model.loaded_size = size;
+			printf("Loaded %d bytes\n", size);
+		} else {
+			printf("Failed to load file\n");
+		}
+	};
+	
+	m_load_texture.setFilename("MILK.TIM;1");
+	m_load_texture.buffer = texture_buffer;
+	m_load_texture.max_size = CD::MAX_FILE_SIZE;
+	m_load_texture.loaded_size = 0;
+	m_load_texture.callback = [this](bool success, uint32_t size) {
+		if(success) {
+			m_load_texture.loaded_size = size;
+			printf("Loaded %d bytes\n", size);
+		} else {
+			printf("Failed to load texture\n");
+		}
+	};
+
+	cdrom.request(m_load_model);
+	cdrom.request(m_load_texture);
 }
 
  void TitleScene::frame() {
-	gpu().clear({.r = 0, .g = 0, .b = 0} );
-	auto pad = psyqo::SimplePad::Pad1;
-	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
-		pushScene(&gameScene);
+	static bool mesh_ready = false;
+	static bool texture_ready = false;
+
+	if (!m_object.mesh.isValid() && m_load_model.loaded_size > 0) {
+		// load the cube mesh from the GLB file
+		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_object.mesh);
+		psyqo::Kernel::assert(m_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
+		mesh_ready = true;
 	}
-	game.m_font.print(gpu(), "Press X to start!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
- }
+
+	// load the texture from the TIM file
+	if (!m_object.texture.isValid() && m_load_texture.loaded_size > 0) {
+		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_object.texture);
+		psyqo::Kernel::assert(m_object.texture.isValid(), "Failed to load texture from TIM file");
+		m_object.texture.tpage = pack_TPage(m_object.texture.ix, m_object.texture.iy, m_object.texture.pmode);
+		m_object.texture.enableDisplayArea();
+		m_object.texture.clut_index = pack_CLUT(m_object.texture.cx, m_object.texture.cy);
+		gpu().uploadToVRAM(m_object.texture.pixel_bytes, {m_object.texture.ix, m_object.texture.iy, m_object.texture.iw, m_object.texture.ih});
+		if(m_object.texture.has_clut) {
+			gpu().uploadToVRAM(m_object.texture.clut_bytes, {m_object.texture.cx, m_object.texture.cy, m_object.texture.cw, m_object.texture.ch});
+		}
+		texture_ready = true;
+	}
+
+	gpu().clear({.r = 0, .g = 0, .b = 0} );
+	if(mesh_ready && texture_ready) {
+		auto pad = psyqo::SimplePad::Pad1;
+		if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
+			pushScene(&gameScene);
+		}
+		game.m_font.print(gpu(), "Press X to start!", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
+	} else {
+		game.m_font.print(gpu(), "Loading ...", {{.x = 10, .y = 10}}, {.r = 255, .g = 255, .b = 255});
+	}
+}
 
 void TitleScene::teardown(TearDownReason reason) {
 	printf("TitleScene torn down\n");
@@ -183,34 +241,6 @@ void GameScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50); // agressive otz compression, but larger world space
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40); // agressive otz compression, but larger world space
 
-	m_load_model.setFilename("BALL.GLB;1");
-	m_load_model.buffer = model_buffer;
-	m_load_model.max_size = CD::MAX_FILE_SIZE;
-	m_load_model.loaded_size = 0;
-	m_load_model.callback = [this](bool success, uint32_t size) {
-		if(success) {
-			m_load_model.loaded_size = size;
-			printf("Loaded %d bytes\n", size);
-		} else {
-			printf("Failed to load file\n");
-		}
-	};
-	
-	m_load_texture.setFilename("MILK.TIM;1");
-	m_load_texture.buffer = texture_buffer;
-	m_load_texture.max_size = CD::MAX_FILE_SIZE;
-	m_load_texture.loaded_size = 0;
-	m_load_texture.callback = [this](bool success, uint32_t size) {
-		if(success) {
-			m_load_texture.loaded_size = size;
-			printf("Loaded %d bytes\n", size);
-		} else {
-			printf("Failed to load texture\n");
-		}
-	};
-
-	cdrom.request(m_load_model);
-	cdrom.request(m_load_texture);
 	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
 }
 
@@ -227,25 +257,6 @@ void GameScene::frame() {
 		return;
 	}
 */
-
-	if (!m_object.mesh.isValid() && m_load_model.loaded_size > 0) {
-		// load the cube mesh from the GLB file
-		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_object.mesh);
-		psyqo::Kernel::assert(m_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
-	}
-
-	// load the texture from the TIM file
-	if (!m_object.texture.isValid() && m_load_texture.loaded_size > 0) {
-		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_object.texture);
-		psyqo::Kernel::assert(m_object.texture.isValid(), "Failed to load texture from TIM file");
-		m_object.texture.tpage = pack_TPage(m_object.texture.ix, m_object.texture.iy, m_object.texture.pmode);
-		m_object.texture.enableDisplayArea();
-		m_object.texture.clut_index = pack_CLUT(m_object.texture.cx, m_object.texture.cy);
-		gpu().uploadToVRAM(m_object.texture.pixel_bytes, {m_object.texture.ix, m_object.texture.iy, m_object.texture.iw, m_object.texture.ih});
-		if(m_object.texture.has_clut) {
-			gpu().uploadToVRAM(m_object.texture.clut_bytes, {m_object.texture.cx, m_object.texture.cy, m_object.texture.cw, m_object.texture.ch});
-		}
-	}
 
 	auto pad = psyqo::SimplePad::Pad1;
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Left)) { // (press right arrow)
