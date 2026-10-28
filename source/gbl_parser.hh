@@ -4,13 +4,12 @@
 #include "EASTL/string.h"
 #include "str_tools.hh"
 #include "texture.hh"
+#include "game_object.hh"
 
 #define GLTF_MAGIC 0x676C5446  // "glTF"
 #define BIN_MAGIC 0x004E4942  // "BIN\0"
 #define GLTF_JSON_OFFSET (20)
 
-#define SMALL_MODEL_MAX_VERTICES (512)
-#define SMALL_MODEL_MAX_INDICES (1024)
 #define MAX_BUFFERVIEWS (8)
 
 #define SCALAR_SIZE  (1)
@@ -38,25 +37,6 @@ const static uint32_t componentTypes[] = {
 	UNSIGNED_INT,
 	FLOAT
 };
-
-typedef struct Mesh {
-	eastl::string name;
-	psyqo::Vec3 vertices[SMALL_MODEL_MAX_VERTICES];
-	uint16_t indices[SMALL_MODEL_MAX_INDICES];
-	psyqo::Vec2 texcoords[SMALL_MODEL_MAX_VERTICES];
-	unsigned num_vertices = 0;
-	unsigned num_texcoords = 0;
-	unsigned num_indices = 0;
-	bool isValid() const { return num_vertices > 0 && num_indices > 0; }
-} Mesh;
-
-typedef struct Object {
-	Mesh mesh;
-	Texture texture;
-	psyqo::Vec3 position;
-	psyqo::Vec3 rotation;
-	psyqo::Vec3 scale = {1.0f, 1.0f, 1.0f};
-} Object;
 
 typedef struct Accessor {
 	uint32_t bufferView;

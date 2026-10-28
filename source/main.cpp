@@ -37,6 +37,21 @@ static constexpr psyqo::Matrix33 identity = {{
 	{0.0_fp, 0.0_fp, 1.0_fp},
 }};
 
+static CD cdrom;
+static psyqo::SimplePad gamePad;
+
+alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
+alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
+
+// global textures and meshes used in the game
+static Texture g_textures[2];
+static Mesh g_meshes[8];
+
+static LoadRequest g_load_model;
+static LoadRequest g_load_texture;
+
+static Object g_object;
+
 class Game final : public psyqo::Application {
 	void prepare() override;
 	void createScene() override;
@@ -114,15 +129,6 @@ static GameScene gameScene;
  static LoadScene loadScene;
 #endif
 
-static CD cdrom;
-static psyqo::SimplePad gamePad;
-
-alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
-alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
-static LoadRequest m_load_model;
-static LoadRequest m_load_texture;
-static Object m_object;
-
 void Game::prepare() {
 	psyqo::GPU::Configuration config;
 	config.set(psyqo::GPU::Resolution::W320)
@@ -142,58 +148,61 @@ void Game::createScene() {
 #ifdef INCLUDE_EXTRA_SCENES
 void TitleScene::start(StartReason reason) {
 	printf("TitleScene started\n");
-	
-	m_load_model.setFilename("BALL.GLB;1");
-	m_load_model.buffer = model_buffer;
-	m_load_model.max_size = CD::MAX_FILE_SIZE;
-	m_load_model.loaded_size = 0;
-	m_load_model.callback = [this](bool success, uint32_t size) {
+		
+	printf("game object size: %d\n", (unsigned)sizeof(g_object));
+	printf("game object mesh size: %d\n", (unsigned)sizeof(g_object.mesh));
+
+	g_load_model.setFilename("MILK.GLB;1");
+	g_load_model.buffer = model_buffer;
+	g_load_model.max_size = CD::MAX_FILE_SIZE;
+	g_load_model.loaded_size = 0;
+	g_load_model.callback = [this](bool success, uint32_t size) {
 		if(success) {
-			m_load_model.loaded_size = size;
+			g_load_model.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
 		} else {
 			printf("Failed to load file\n");
 		}
 	};
 	
-	m_load_texture.setFilename("MILK.TIM;1");
-	m_load_texture.buffer = texture_buffer;
-	m_load_texture.max_size = CD::MAX_FILE_SIZE;
-	m_load_texture.loaded_size = 0;
-	m_load_texture.callback = [this](bool success, uint32_t size) {
+	g_load_texture.setFilename("MILK.TIM;1");
+	g_load_texture.buffer = texture_buffer;
+	g_load_texture.max_size = CD::MAX_FILE_SIZE;
+	g_load_texture.loaded_size = 0;
+	g_load_texture.callback = [this](bool success, uint32_t size) {
 		if(success) {
-			m_load_texture.loaded_size = size;
+			g_load_texture.loaded_size = size;
 			printf("Loaded %d bytes\n", size);
 		} else {
 			printf("Failed to load texture\n");
 		}
 	};
 
-	cdrom.request(m_load_model);
-	cdrom.request(m_load_texture);
+	cdrom.request(g_load_model);
+	cdrom.request(g_load_texture);
 }
 
  void TitleScene::frame() {
 	static bool mesh_ready = false;
 	static bool texture_ready = false;
 
-	if (!m_object.mesh.isValid() && m_load_model.loaded_size > 0) {
+	if (!g_object.mesh.isValid() && g_load_model.loaded_size > 0) {
 		// load the cube mesh from the GLB file
-		parse_GBL(m_load_model.buffer, m_load_model.loaded_size, &m_object.mesh);
-		psyqo::Kernel::assert(m_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
+		parse_GBL(g_load_model.buffer, g_load_model.loaded_size, &g_object.mesh);
+		psyqo::Kernel::assert(g_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
 		mesh_ready = true;
 	}
 
 	// load the texture from the TIM file
-	if (!m_object.texture.isValid() && m_load_texture.loaded_size > 0) {
-		parse_TIM(m_load_texture.buffer, m_load_texture.loaded_size, &m_object.texture);
-		psyqo::Kernel::assert(m_object.texture.isValid(), "Failed to load texture from TIM file");
-		m_object.texture.tpage = pack_TPage(m_object.texture.ix, m_object.texture.iy, m_object.texture.pmode);
-		m_object.texture.enableDisplayArea();
-		m_object.texture.clut_index = pack_CLUT(m_object.texture.cx, m_object.texture.cy);
-		gpu().uploadToVRAM(m_object.texture.pixel_bytes, {m_object.texture.ix, m_object.texture.iy, m_object.texture.iw, m_object.texture.ih});
-		if(m_object.texture.has_clut) {
-			gpu().uploadToVRAM(m_object.texture.clut_bytes, {m_object.texture.cx, m_object.texture.cy, m_object.texture.cw, m_object.texture.ch});
+	if (!g_object.texture.isValid() && g_load_texture.loaded_size > 0) {
+		parse_TIM(g_load_texture.buffer, g_load_texture.loaded_size, &g_object.texture);
+		psyqo::Kernel::assert(g_object.texture.isValid(), "Failed to load texture from TIM file");
+		g_object.texture.tpage = pack_TPage(g_object.texture.ix, g_object.texture.iy, g_object.texture.pmode);
+		g_object.texture.enableDisplayArea();
+		g_object.texture.clut_index = pack_CLUT(g_object.texture.cx, g_object.texture.cy);
+		gpu().uploadToVRAM(g_object.texture.pixel_bytes, {g_object.texture.ix, g_object.texture.iy, g_object.texture.iw, g_object.texture.ih});
+		if(g_object.texture.has_clut) {
+			gpu().uploadToVRAM(g_object.texture.clut_bytes, {g_object.texture.cx, g_object.texture.cy, g_object.texture.cw, g_object.texture.ch});
 		}
 		texture_ready = true;
 	}
@@ -312,17 +321,17 @@ void GameScene::frame() {
 	static uint16_t ia, ib, ic;
 
 	// will only run if the mesh has any indices to process
-	for(int i=0, t=0; i<m_object.mesh.num_indices; i+=3, t++) {
+	for(int i=0, t=0; i<g_object.mesh.num_indices; i+=3, t++) {
 
 		// inverse order
-		ia = m_object.mesh.indices[i+2];
-		ib = m_object.mesh.indices[i+1];
-		ic = m_object.mesh.indices[i+0];
+		ia = g_object.mesh.indices[i+2];
+		ib = g_object.mesh.indices[i+1];
+		ic = g_object.mesh.indices[i+0];
 
 		// load 3 vertices into the GTE.
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(m_object.mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(m_object.mesh.vertices[ib]);
-		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(m_object.mesh.vertices[ic]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V0>(g_object.mesh.vertices[ia]); // count backwards because the GTE expects them in reverse order
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V1>(g_object.mesh.vertices[ib]);
+		psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::V2>(g_object.mesh.vertices[ic]);
 
 		// perform rtpt (perspective transformation) to the three verticies.
 		psyqo::GTE::Kernels::rtpt();
@@ -349,18 +358,18 @@ void GameScene::frame() {
 		tri.primitive.pointB = projected[1];
 		tri.primitive.pointC = projected[2];
 
-		if(m_object.texture.isValid()) {
+		if(g_object.texture.isValid()) {
 			// texture
-			tri.primitive.uvA = toUVCoords(m_object.mesh.texcoords[ia].x, m_object.mesh.texcoords[ia].y, m_object.texture);
-			tri.primitive.uvB = toUVCoords(m_object.mesh.texcoords[ib].x, m_object.mesh.texcoords[ib].y, m_object.texture);
-			auto          uvC = toUVCoords(m_object.mesh.texcoords[ic].x, m_object.mesh.texcoords[ic].y, m_object.texture);
+			tri.primitive.uvA = toUVCoords(g_object.mesh.texcoords[ia].x, g_object.mesh.texcoords[ia].y, g_object.texture);
+			tri.primitive.uvB = toUVCoords(g_object.mesh.texcoords[ib].x, g_object.mesh.texcoords[ib].y, g_object.texture);
+			auto          uvC = toUVCoords(g_object.mesh.texcoords[ic].x, g_object.mesh.texcoords[ic].y, g_object.texture);
 			tri.primitive.uvC = { uvC.u, uvC.v, 0 }; // uvC needs padding to 32 bits
 		
-			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(m_object.texture.cx >> 4, m_object.texture.cy);
-			psyqo::Kernel::assert(m_object.texture.pmode <= 3, "Invalid pixel mode");
-			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(m_object.texture.pmode);
-			tri.primitive.tpage.setPageX(m_object.texture.ix >> 6)
-					.setPageY(m_object.texture.iy >> 8)
+			tri.primitive.clutIndex = psyqo::PrimPieces::ClutIndex(g_object.texture.cx >> 4, g_object.texture.cy);
+			psyqo::Kernel::assert(g_object.texture.pmode <= 3, "Invalid pixel mode");
+			auto colorMode = static_cast<psyqo::Prim::TPageAttr::ColorMode>(g_object.texture.pmode);
+			tri.primitive.tpage.setPageX(g_object.texture.ix >> 6)
+					.setPageY(g_object.texture.iy >> 8)
 					.set(colorMode);
 		}
 
