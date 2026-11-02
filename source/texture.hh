@@ -15,6 +15,8 @@
 #define MAX_PIXEL_DATA_SIZE (64*1024)
 #define MAX_CLUT_DATA_SIZE (64)
 
+namespace texture {
+
 typedef struct Texture {
 	bool is_valid = false;
 	eastl::string name;
@@ -36,3 +38,5 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture);
 uint16_t pack_TPage(uint16_t x, uint16_t y, uint16_t mode);
 uint16_t pack_CLUT(uint16_t x, uint16_t y);
 psyqo::PrimPieces::UVCoords toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoint<> vfix, Texture &tex);
+
+} // namespace texture

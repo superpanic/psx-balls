@@ -4,10 +4,15 @@
 #include "psyqo/ordering-table.hh"
 #include "gbl_parser.hh"
 #include "psyqo/vector.hh"
+#include "psyqo/fixed-point.hh"
 #include "texture.hh"
 
 #define SMALL_MODEL_MAX_VERTICES (512)
 #define SMALL_MODEL_MAX_INDICES (1024)
+
+using namespace psyqo::fixed_point_literals;
+
+namespace game_object {
 
 typedef struct Mesh {
 	eastl::string name;
@@ -23,10 +28,10 @@ typedef struct Mesh {
 // will be replaced by GameObject class in the future
 typedef struct Object {
 	Mesh mesh;
-	Texture texture;
+	texture::Texture texture;
 	psyqo::Vec3 position;
 	psyqo::Vec3 rotation;
-	psyqo::Vec3 scale = {1.0f, 1.0f, 1.0f};
+	psyqo::Vec3 scale = {1.0_fp, 1.0_fp, 1.0_fp};
 } Object;
 
 class GameObject {
@@ -35,7 +40,7 @@ class GameObject {
 		void draw(psyqo::OrderingTable<> &ot);
 
 		Mesh *mesh = nullptr;
-		Texture *texture = nullptr;
+		texture::Texture *texture = nullptr;
 
 		psyqo::Vec3 position;
 		psyqo::Vec3 rotation;
@@ -47,3 +52,5 @@ class GameObject {
 	private:
 
 };
+
+} // namespace game_object

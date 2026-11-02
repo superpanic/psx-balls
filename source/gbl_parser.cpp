@@ -6,7 +6,7 @@
 #include "psyqo/fixed-point.hh"
 
 
-bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh) {
+bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
 	const uint8_t *head = data;
 	const uint8_t *meshes_ptr = nullptr;
 	const uint8_t *accessors_ptr = nullptr;

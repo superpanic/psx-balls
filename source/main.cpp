@@ -40,17 +40,17 @@ static constexpr psyqo::Matrix33 identity = {{
 static CD cdrom;
 static psyqo::SimplePad gamePad;
 
-alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE];
-alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
+//alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE]; 
+//alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
 
 // global textures and meshes used in the game
-static Texture g_textures[2];
-static Mesh g_meshes[8];
+static texture::Texture g_textures[2];
+static game_object::Mesh g_meshes[8];
 
 static LoadRequest g_load_model;
 static LoadRequest g_load_texture;
 
-static Object g_object;
+static game_object::Object g_object;
 
 class Game final : public psyqo::Application {
 	void prepare() override;
@@ -100,7 +100,7 @@ class GameScene final : public psyqo::Scene {
 };
 
 #ifdef INCLUDE_EXTRA_SCENES
-	class TitleScene final : public psyqo::Scene {
+	class LoadScene final : public psyqo::Scene {
 		public:
 			void start(StartReason reason) override;
 			void frame() override;
@@ -113,20 +113,15 @@ class GameScene final : public psyqo::Scene {
 			void frame() override;
 	};
 
-	class LoadScene final : public psyqo::Scene {
-		public:
-			void start(StartReason reason) override;
-			void frame() override;
-	};
+
 #endif
 
 
 static Game game;
 static GameScene gameScene;
 #ifdef INCLUDE_EXTRA_SCENES
- static TitleScene titleScene;
- static PauseScene pauseScene;
  static LoadScene loadScene;
+ static PauseScene pauseScene;
 #endif
 
 void Game::prepare() {
@@ -142,19 +137,16 @@ void Game::prepare() {
 void Game::createScene() { 
 	m_font.uploadSystemFont(gpu());
 	gamePad.initialize();
-	pushScene(&titleScene);
+	pushScene(&loadScene);
 }
 
 #ifdef INCLUDE_EXTRA_SCENES
-void TitleScene::start(StartReason reason) {
+void LoadScene::start(StartReason reason) {
 	printf("TitleScene started\n");
-		
 	printf("game object size: %d\n", (unsigned)sizeof(g_object));
 	printf("game object mesh size: %d\n", (unsigned)sizeof(g_object.mesh));
 
-	g_load_model.setFilename("MILK.GLB;1");
-	g_load_model.buffer = model_buffer;
-	g_load_model.max_size = CD::MAX_FILE_SIZE;
+	g_load_model.setFilename("BALL.GLB;1");
 	g_load_model.loaded_size = 0;
 	g_load_model.callback = [this](bool success, uint32_t size) {
 		if(success) {
@@ -164,10 +156,9 @@ void TitleScene::start(StartReason reason) {
 			printf("Failed to load file\n");
 		}
 	};
-	
+	cdrom.request(g_load_model);
+
 	g_load_texture.setFilename("MILK.TIM;1");
-	g_load_texture.buffer = texture_buffer;
-	g_load_texture.max_size = CD::MAX_FILE_SIZE;
 	g_load_texture.loaded_size = 0;
 	g_load_texture.callback = [this](bool success, uint32_t size) {
 		if(success) {
@@ -177,29 +168,27 @@ void TitleScene::start(StartReason reason) {
 			printf("Failed to load texture\n");
 		}
 	};
-
-	cdrom.request(g_load_model);
 	cdrom.request(g_load_texture);
 }
 
- void TitleScene::frame() {
+ void LoadScene::frame() {
 	static bool mesh_ready = false;
 	static bool texture_ready = false;
 
 	if (!g_object.mesh.isValid() && g_load_model.loaded_size > 0) {
 		// load the cube mesh from the GLB file
-		parse_GBL(g_load_model.buffer, g_load_model.loaded_size, &g_object.mesh);
+		parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
 		psyqo::Kernel::assert(g_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
 		mesh_ready = true;
 	}
 
 	// load the texture from the TIM file
 	if (!g_object.texture.isValid() && g_load_texture.loaded_size > 0) {
-		parse_TIM(g_load_texture.buffer, g_load_texture.loaded_size, &g_object.texture);
+		parse_TIM(cdrom.extractFile(), g_load_texture.loaded_size, &g_object.texture);
 		psyqo::Kernel::assert(g_object.texture.isValid(), "Failed to load texture from TIM file");
-		g_object.texture.tpage = pack_TPage(g_object.texture.ix, g_object.texture.iy, g_object.texture.pmode);
+		g_object.texture.tpage = texture::pack_TPage(g_object.texture.ix, g_object.texture.iy, g_object.texture.pmode);
 		g_object.texture.enableDisplayArea();
-		g_object.texture.clut_index = pack_CLUT(g_object.texture.cx, g_object.texture.cy);
+		g_object.texture.clut_index = texture::pack_CLUT(g_object.texture.cx, g_object.texture.cy);
 		gpu().uploadToVRAM(g_object.texture.pixel_bytes, {g_object.texture.ix, g_object.texture.iy, g_object.texture.iw, g_object.texture.ih});
 		if(g_object.texture.has_clut) {
 			gpu().uploadToVRAM(g_object.texture.clut_bytes, {g_object.texture.cx, g_object.texture.cy, g_object.texture.cw, g_object.texture.ch});
@@ -219,15 +208,13 @@ void TitleScene::start(StartReason reason) {
 	}
 }
 
-void TitleScene::teardown(TearDownReason reason) {
+void LoadScene::teardown(TearDownReason reason) {
 	printf("TitleScene torn down\n");
 }
 
 void PauseScene::start(StartReason reason) {}
 void PauseScene::frame() {}
 
-void LoadScene::start(StartReason reason) {}
-void LoadScene::frame() {}
 #endif
 
 void GameScene::start(StartReason reason) {

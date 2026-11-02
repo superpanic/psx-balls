@@ -54,7 +54,7 @@ typedef struct BufferView {
 } BufferView;
 
 // main parser
-bool parse_GBL(const uint8_t *data, size_t size, Mesh *mesh);
+bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh);
 
 // helpers
 const char* find_key(const char* json, const char* key);

@@ -2,6 +2,7 @@
 #include "psyqo/xprintf.h"
 #include "parser_macros.hh"
 
+namespace texture {
 void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	const uint8_t *head = data;
 	if (size < TIM_HEADER_SIZE) {
@@ -127,3 +128,4 @@ psyqo::PrimPieces::UVCoords toUVCoords(psyqo::FixedPoint<> ufix, psyqo::FixedPoi
 	if (v < 0) v = 0; if (v > 255) v = 255;
 	return psyqo::PrimPieces::UVCoords{ uint8_t(u), uint8_t(v) };
 }
+} // namespace texture

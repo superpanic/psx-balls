@@ -10,9 +10,7 @@
 typedef struct LoadRequest {
 	char filename[MAX_FILENAME_LENGTH+1];
 	psyqo::ISO9660Parser::DirEntry dir_entry;
-	uint8_t *buffer;
-	size_t max_size;
-	size_t loaded_size;
+	size_t loaded_size = 0;
 	eastl::function<void(bool, uint32_t size)> callback;
 	void setFilename(eastl::string_view str) {
 		size_t len = str.size() < MAX_FILENAME_LENGTH ? str.size() : MAX_FILENAME_LENGTH;
@@ -34,24 +32,29 @@ class CD {
 		// making internal ISO9660Parser and CDRomDevice available for debugging purposes
 		const psyqo::ISO9660Parser::DirEntry &getEntry() const { return m_entry; }
 		psyqo::CDRomDevice &getCDRom() { return m_cdrom; }
+		uint8_t *extractFile();
 
 		constexpr static unsigned MAX_QUEUE_SIZE = 4;
 		constexpr static size_t MAX_FILE_SIZE = 256 * 1024;   // e.g. 256 KB max per model
 
 	private:
+
+		alignas(4) uint8_t m_file_buffer[MAX_FILE_SIZE];
+
 		enum class State {
 			Idle,
 			Resetting,
 			InitializingParser,
 			Finding,
 			Loading,
+			Completed,
 			Error
 		};
+
 		State m_state = State::Idle;
 
 		bool m_firstRun = true;
-
-		LoadRequest m_loadRequestQueue[MAX_QUEUE_SIZE];
+		LoadRequest m_load_request_queue[MAX_QUEUE_SIZE];
 		unsigned m_queueCount = 0;
 
 		psyqo::CDRomDevice m_cdrom;
