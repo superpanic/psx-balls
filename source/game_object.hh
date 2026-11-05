@@ -16,9 +16,9 @@ namespace game_object {
 
 typedef struct Mesh {
 	eastl::string name;
-	psyqo::Vec3 vertices[SMALL_MODEL_MAX_VERTICES];
-	uint16_t indices[SMALL_MODEL_MAX_INDICES];
-	psyqo::Vec2 texcoords[SMALL_MODEL_MAX_VERTICES];
+	psyqo::Vec3 *vertices = nullptr;
+	uint16_t *indices = nullptr;
+	psyqo::Vec2 *texcoords = nullptr;
 	unsigned num_vertices = 0;
 	unsigned num_texcoords = 0;
 	unsigned num_indices = 0;

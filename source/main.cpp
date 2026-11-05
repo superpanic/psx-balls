@@ -43,6 +43,8 @@ static psyqo::SimplePad gamePad;
 //alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE]; 
 //alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
 
+
+
 // global textures and meshes used in the game
 static texture::Texture g_textures[2];
 static game_object::Mesh g_meshes[8];
@@ -51,6 +53,11 @@ static LoadRequest g_load_model;
 static LoadRequest g_load_texture;
 
 static game_object::Object g_object;
+
+
+
+
+
 
 class Game final : public psyqo::Application {
 	void prepare() override;
@@ -151,6 +158,7 @@ void LoadScene::start(StartReason reason) {
 	g_load_model.callback = [this](bool success, uint32_t size) {
 		if(success) {
 			g_load_model.loaded_size = size;
+			parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
 			printf("Loaded %d bytes\n", size);
 		} else {
 			printf("Failed to load file\n");
@@ -181,7 +189,7 @@ void LoadScene::start(StartReason reason) {
 		psyqo::Kernel::assert(g_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
 		mesh_ready = true;
 	}
-
+/*
 	// load the texture from the TIM file
 	if (!g_object.texture.isValid() && g_load_texture.loaded_size > 0) {
 		parse_TIM(cdrom.extractFile(), g_load_texture.loaded_size, &g_object.texture);
@@ -195,6 +203,7 @@ void LoadScene::start(StartReason reason) {
 		}
 		texture_ready = true;
 	}
+*/
 
 	gpu().clear({.r = 0, .g = 0, .b = 0} );
 	if(mesh_ready && texture_ready) {

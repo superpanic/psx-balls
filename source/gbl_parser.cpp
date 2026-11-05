@@ -4,6 +4,7 @@
 #include "parser_macros.hh"
 #include "str_tools.hh"
 #include "psyqo/fixed-point.hh"
+#include "level_buffer.hh"
 
 
 bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
@@ -169,6 +170,10 @@ bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
 	psyqo::Kernel::assert(head + bufferViews[0].byteLength <= end, "BufferView exceeds binary chunk size");
 
 	// read vertices
+	mesh->num_vertices = accessors[0].count;
+	mesh->vertices = (psyqo::Vec3*)level_buffer::buffer_alloc(mesh->num_vertices * sizeof(psyqo::Vec3));
+	psyqo::Kernel::assert(mesh->vertices != nullptr, "failed to allocate memory for vertices");
+
 	for(int i=0; i<accessors[0].count && i<SMALL_MODEL_MAX_VERTICES; i++) {
 		psyqo::Vec3 &v = mesh->vertices[i];
 		if (accessors[0].componentType == FLOAT && accessors[0].type == "VEC3") {
@@ -183,11 +188,15 @@ bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
 			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for vertices");
 		}
 	}
-	mesh->num_vertices = accessors[0].count;
 
 	// read texcoords
 	head = bin_ptr + bufferViews[2].byteOffset;
 	psyqo::Kernel::assert(head + bufferViews[2].byteLength <= end, "BufferView exceeds binary chunk size");
+
+	mesh->num_texcoords = accessors[2].count;
+	mesh->texcoords = (psyqo::Vec2*)level_buffer::buffer_alloc(mesh->num_texcoords * sizeof(psyqo::Vec2));
+	psyqo::Kernel::assert(mesh->texcoords != nullptr, "failed to allocate memory for texcoords");
+
 	for(int i=0; i<accessors[2].count && i<SMALL_MODEL_MAX_VERTICES; i++) {
 		psyqo::Vec2 &tc = mesh->texcoords[i];
 		if (accessors[2].componentType == FLOAT && accessors[2].type == "VEC2") {
@@ -201,11 +210,14 @@ bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
 		}
 	}
 
-	mesh->num_texcoords = accessors[2].count;
-
 	// read indices
 	head = bin_ptr + bufferViews[3].byteOffset;
 	psyqo::Kernel::assert(head + bufferViews[3].byteLength <= end, "BufferView exceeds binary chunk size");
+	
+	mesh->num_indices = accessors[3].count;
+	mesh->indices = (uint16_t*)level_buffer::buffer_alloc(mesh->num_indices * sizeof(uint16_t));
+	psyqo::Kernel::assert(mesh->indices != nullptr, "failed to allocate memory for indices");
+	
 	for(int i=0; i<accessors[3].count && i<SMALL_MODEL_MAX_INDICES; i++) {
 		if (accessors[3].componentType == UNSIGNED_SHORT && accessors[3].type == "SCALAR") {
 			uint16_t index = READ_LE16(head); head += 2;
@@ -215,7 +227,7 @@ bool parse_GBL(const uint8_t *data, size_t size, game_object::Mesh *mesh) {
 			psyqo::Kernel::assert(false, "Unsupported accessor componentType or type for indices");
 		}
 	}
-	mesh->num_indices = accessors[3].count;
+	
 	printf("num_indices: %u\n", mesh->num_indices);
 	return true;
 }

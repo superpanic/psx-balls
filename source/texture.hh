@@ -28,8 +28,8 @@ typedef struct Texture {
 	int16_t iw, ih;         // image size in 16-bit VRAM units (not pixels)
 	uint16_t tpage;          // packed once after parse
 	uint16_t clut_index;     // packed once after parse
-	alignas(4) uint16_t pixel_bytes[MAX_PIXEL_DATA_SIZE];
-	alignas(4) uint16_t clut_bytes[MAX_CLUT_DATA_SIZE];
+	alignas(4) uint16_t *pixel_bytes = nullptr;
+	alignas(4) uint16_t *clut_bytes = nullptr;
 	bool isValid() const { return is_valid; }
 	void enableDisplayArea() { tpage |= 0x0400; }
 } Texture;
