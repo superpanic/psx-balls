@@ -60,17 +60,61 @@ bool CD::advance() {
 	return false;
 }
 
-void CD::findFile() {	
+// 1
+// find the file in the CD-ROM directory, using the ISO9660 parser
+// calls onFileFound() when the file is found or not found in the CD-ROM directory
+void CD::findFile() {
 	m_state = State::Finding;
-	m_parser.getDirentry(m_load_request_queue[0].filename, &m_load_request_queue[0].dir_entry, [this](bool s) { onFileFound(s); });
+	m_parser.getDirentry(m_load_request_queue[0].filename, &m_load_request_queue[0].dir_entry, [this](bool s) { 
+		onFileFound(s); 
+	});
 }
 
+// 2
+// called when the file is found or not found in the CD-ROM directory
+// if the file is found, it will start loading the file
+// calling loadFile() if the file is found
+void CD::onFileFound(bool success) {		   
+	if(success && m_load_request_queue[0].dir_entry.type == psyqo::ISO9660Parser::DirEntry::FILE) {
+		printf("SUCCESS: File found: LBA=%d, size=%d, name=%s\n", m_load_request_queue[0].dir_entry.LBA, m_load_request_queue[0].dir_entry.size, m_load_request_queue[0].dir_entry.name.c_str());
+		loadFile();
+	} else {
+		printf("ERROR: File %s not found or invalid\n", m_filename.c_str());
+		m_state = State::Error;
+	}
+}
+
+// 3
+// read the file from the CD-ROM using the LBA and sector count, 
+// calling onFileLoaded() when done
 void CD::loadFile() {
 	uint32_t sectorCount = (m_load_request_queue[0].dir_entry.size + 2047) >> 11;  // (divide by 2048);
 	printf("Loading file %s (LBA=%d, size=%d, sectors=%d)\n", m_load_request_queue[0].filename, m_load_request_queue[0].dir_entry.LBA, m_load_request_queue[0].dir_entry.size, sectorCount);
 	m_state = State::Loading; // set before calling readSectors to avoid race condition if callback
 	printf("Loading ");
-	m_cdrom.readSectors(m_load_request_queue[0].dir_entry.LBA, sectorCount, m_file_buffer, [this](bool s) { onFileLoaded(s); });
+	m_cdrom.readSectors(m_load_request_queue[0].dir_entry.LBA, sectorCount, m_file_buffer, [this](bool s) { 
+		onFileLoaded(s); 
+	});
+}
+
+
+// 4
+// called when the file has finished loading from the CD-ROM
+// if successful, it will call the callback associated with the load request
+// and remove the request from the queue
+// enter state completed if successful
+void CD::onFileLoaded(bool success) {
+	if(success) {
+		printf("\nSUCCESS: File loaded\n");
+		if(m_load_request_queue[0].callback) {
+			m_load_request_queue[0].callback(true, m_load_request_queue[0].dir_entry.size);
+		}
+		removeRequest();
+		m_state = State::Completed;
+	} else {
+		printf("ERROR: File load failed\n");
+		m_state = State::Error;
+	}
 }
 
 void CD::onReset(bool success) {
@@ -98,16 +142,6 @@ void CD::onParserInit(bool success) {
 	}
 }
 
-void CD::onFileFound(bool success) {		   
-	if(success && m_load_request_queue[0].dir_entry.type == psyqo::ISO9660Parser::DirEntry::FILE) {
-		printf("SUCCESS: File found: LBA=%d, size=%d, name=%s\n", m_load_request_queue[0].dir_entry.LBA, m_load_request_queue[0].dir_entry.size, m_load_request_queue[0].dir_entry.name.c_str());
-		loadFile();
-	} else {
-		printf("ERROR: File %s not found or invalid\n", m_filename.c_str());
-		m_state = State::Error;
-	}
-}
-
 uint8_t *CD::extractFile() {
 	if(m_queueCount > 0) {
 		findFile();
@@ -117,16 +151,3 @@ uint8_t *CD::extractFile() {
 	return m_file_buffer;
 }
 
-void CD::onFileLoaded(bool success) {
-	if(success) {
-		printf("\nSUCCESS: File loaded\n");
-		if(m_load_request_queue[0].callback) {
-			m_load_request_queue[0].callback(true, m_load_request_queue[0].dir_entry.size);
-		}
-		removeRequest();
-		m_state = State::Completed;
-	} else {
-		printf("ERROR: File load failed\n");
-		m_state = State::Error;
-	}
-}

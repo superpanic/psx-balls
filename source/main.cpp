@@ -176,20 +176,22 @@ void LoadScene::start(StartReason reason) {
 			printf("Failed to load texture\n");
 		}
 	};
-	cdrom.request(g_load_texture);
+	//cdrom.request(g_load_texture);
 }
 
  void LoadScene::frame() {
 	static bool mesh_ready = false;
 	static bool texture_ready = false;
 
+/*
 	if (!g_object.mesh.isValid() && g_load_model.loaded_size > 0) {
 		// load the cube mesh from the GLB file
 		parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
 		psyqo::Kernel::assert(g_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
 		mesh_ready = true;
+		texture_ready = true;
 	}
-/*
+
 	// load the texture from the TIM file
 	if (!g_object.texture.isValid() && g_load_texture.loaded_size > 0) {
 		parse_TIM(cdrom.extractFile(), g_load_texture.loaded_size, &g_object.texture);
@@ -206,7 +208,7 @@ void LoadScene::start(StartReason reason) {
 */
 
 	gpu().clear({.r = 0, .g = 0, .b = 0} );
-	if(mesh_ready && texture_ready) {
+	if(g_object.mesh.isValid()) {
 		auto pad = psyqo::SimplePad::Pad1;
 		if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Cross)) {
 			pushScene(&gameScene);
