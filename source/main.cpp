@@ -254,17 +254,6 @@ void GameScene::start(StartReason reason) {
 void GameScene::frame() {
 	cdrom.advance();   // Drive the state machine
 
-/*
-	if (m_cdrom.isBusy()) {
-		// still loading → just clear screen
-		int parity = gpu().getParity();
-		auto &clear = m_clear[parity];
-		gpu().getNextClear(clear.primitive, c_bg);
-		gpu().chain(clear);
-		return;
-	}
-*/
-
 	auto pad = psyqo::SimplePad::Pad1;
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Left)) { // (press right arrow)
 		m_roty -= psyqo::Angle(0.01); // turns right

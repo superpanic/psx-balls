@@ -1,10 +1,12 @@
 #include "texture.hh"
 #include "psyqo/xprintf.h"
 #include "parser_macros.hh"
+#include "level_buffer.hh"
+#include "psyqo/kernel.hh"
 
 namespace texture {
 void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
-	const uint8_t *head = data;
+	const uint8_t *head = data; // from CD
 	if (size < TIM_HEADER_SIZE) {
 		texture->is_valid = false;
 		printf("ERROR: TIM data is too small\n");
@@ -71,7 +73,10 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 
 	// copy CLUT data to the texture's internal buffer
 	if(texture->has_clut) {
-		for (uint32_t i = 0; i < texture->cw * texture->ch; ++i) {
+		uint32_t clut_size = texture->cw * texture->ch;
+		texture->clut_bytes = (uint16_t*)level_buffer::buffer_alloc(clut_size * sizeof(uint16_t));
+		psyqo::Kernel::assert(texture->clut_bytes != nullptr, "Failed to allocate CLUT buffer");
+		for (uint32_t i = 0; i < clut_size; ++i) {
 			texture->clut_bytes[i] = ((uint16_t*)clut_data)[i];
 		}
 	}
@@ -93,6 +98,8 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	image_data += 2;
 
 	// copy pixel data to the texture's internal buffer
+	texture->pixel_bytes = (uint16_t*)level_buffer::buffer_alloc(image_size);
+	psyqo::Kernel::assert(texture->pixel_bytes != nullptr, "Failed to allocate pixel buffer");
 	for (uint32_t i = 0; i < image_size / 2; ++i) {
 		texture->pixel_bytes[i] = ((uint16_t*)image_data)[i];
 	}
