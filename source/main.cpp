@@ -14,6 +14,7 @@
 #include <EASTL/string.h>
 #include "psyqo/font.hh"
 #include "psyqo/simplepad.hh"
+#include "level_buffer.hh"
 
 #include <cstddef>
 #include <cstdint>
@@ -159,6 +160,7 @@ void LoadScene::start(StartReason reason) {
 		if(success) {
 			g_load_model.loaded_size = size;
 			parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
+			printf("Buffer kB left: %d of %d\n", level_buffer::buffer_bytes_free()>>10, level_buffer::total_bytes()>>10);
 			printf("Loaded %d bytes\n", size);
 		} else {
 			printf("Failed to load file\n");

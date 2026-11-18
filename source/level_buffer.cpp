@@ -22,8 +22,12 @@ void buffer_reset() {
 	g_buffer_end = g_buffer; 
 }
 
-size_t buffer_free() {
+size_t buffer_bytes_free() {
     return BUFFER_SIZE - (g_buffer_end - g_buffer);
+}
+
+size_t total_bytes() {
+    return BUFFER_SIZE;
 }
 
 } // namespace level_buffer

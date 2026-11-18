@@ -9,7 +9,6 @@ void CD::request(const LoadRequest &request) {
 	if(m_state == State::Idle && m_queueCount > 0) {
 		read(m_load_request_queue[0].filename);
 	}
-	//TODO: Implement handling of subsequent requests in the queue after the first one is processed.
 }
 
 void CD::read(eastl::string_view filename) {
@@ -106,11 +105,11 @@ void CD::loadFile() {
 void CD::onFileLoaded(bool success) {
 	if(success) {
 		printf("\nSUCCESS: File loaded\n");
+		removeRequest(); // remove request before calling the callback, to avoid potential issues if the callback triggers another request
+		m_state = State::Completed;
 		if(m_load_request_queue[0].callback) {
 			m_load_request_queue[0].callback(true, m_load_request_queue[0].dir_entry.size);
 		}
-		removeRequest();
-		m_state = State::Completed;
 	} else {
 		printf("ERROR: File load failed\n");
 		m_state = State::Error;
