@@ -79,6 +79,7 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 		for (uint32_t i = 0; i < clut_size; ++i) {
 			texture->clut_bytes[i] = ((uint16_t*)clut_data)[i];
 		}
+		printf("Bytes left after CLUT allocation: %u\n", level_buffer::buffer_bytes_free());
 	}
 
 	printf("CLUT X: %u\n", texture->cx);
@@ -103,6 +104,7 @@ void parse_TIM(uint8_t *data, size_t size, Texture *texture) {
 	for (uint32_t i = 0; i < image_size / 2; ++i) {
 		texture->pixel_bytes[i] = ((uint16_t*)image_data)[i];
 	}
+	printf("Bytes left after image allocation: %u\n", level_buffer::buffer_bytes_free());
 
 	printf("Image X: %u\n", texture->ix);
 	printf("Image Y: %u\n", texture->iy);

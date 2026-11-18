@@ -23,7 +23,6 @@ class CD {
 	public: 
 		CD() : m_parser(&m_cdrom) {   }
 		void request(const LoadRequest &request);
-		void read(eastl::string_view filename);
 		bool advance();
 		bool isBusy() const { return m_state != State::Idle && m_state != State::Error; }
 		bool isReady() const { return m_state == State::Idle; }
@@ -59,9 +58,9 @@ class CD {
 
 		psyqo::CDRomDevice m_cdrom;
 		psyqo::ISO9660Parser m_parser;
-		eastl::string m_filename;
 		psyqo::ISO9660Parser::DirEntry m_entry;
 
+		void firstRun();
 		void findFile();
 		void loadFile();
 		void removeRequest();

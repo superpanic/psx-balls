@@ -41,10 +41,6 @@ static constexpr psyqo::Matrix33 identity = {{
 static CD cdrom;
 static psyqo::SimplePad gamePad;
 
-//alignas(4) static uint8_t model_buffer[CD::MAX_FILE_SIZE]; 
-//alignas(4) static uint8_t texture_buffer[CD::MAX_FILE_SIZE];
-
-
 
 // global textures and meshes used in the game
 static texture::Texture g_textures[2];
@@ -54,10 +50,6 @@ static LoadRequest g_load_model;
 static LoadRequest g_load_texture;
 
 static game_object::Object g_object;
-
-
-
-
 
 
 class Game final : public psyqo::Application {
@@ -151,8 +143,6 @@ void Game::createScene() {
 #ifdef INCLUDE_EXTRA_SCENES
 void LoadScene::start(StartReason reason) {
 	printf("TitleScene started\n");
-	printf("game object size: %d\n", (unsigned)sizeof(g_object));
-	printf("game object mesh size: %d\n", (unsigned)sizeof(g_object.mesh));
 
 	g_load_model.setFilename("BALL.GLB;1");
 	g_load_model.loaded_size = 0;
@@ -161,7 +151,7 @@ void LoadScene::start(StartReason reason) {
 			g_load_model.loaded_size = size;
 			parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
 			printf("Buffer kB left: %d of %d\n", level_buffer::buffer_bytes_free()>>10, level_buffer::total_bytes()>>10);
-			printf("Loaded %d bytes\n", size);
+			printf("Loaded model %d bytes\n", size);
 		} else {
 			printf("Failed to load file\n");
 		}
@@ -173,17 +163,20 @@ void LoadScene::start(StartReason reason) {
 	g_load_texture.callback = [this](bool success, uint32_t size) {
 		if(success) {
 			g_load_texture.loaded_size = size;
-			printf("Loaded %d bytes\n", size);
+			// TODO: upload texture to VRAM
+			printf("Loaded texture %d bytes\n", size);
 		} else {
 			printf("Failed to load texture\n");
 		}
 	};
-	//cdrom.request(g_load_texture);
+	cdrom.request(g_load_texture);
 }
 
  void LoadScene::frame() {
 	static bool mesh_ready = false;
 	static bool texture_ready = false;
+
+	cdrom.advance();   // Drive the state machine
 
 /*
 	if (!g_object.mesh.isValid() && g_load_model.loaded_size > 0) {
@@ -254,8 +247,6 @@ void GameScene::start(StartReason reason) {
 }
 
 void GameScene::frame() {
-	cdrom.advance();   // Drive the state machine
-
 	auto pad = psyqo::SimplePad::Pad1;
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Left)) { // (press right arrow)
 		m_roty -= psyqo::Angle(0.01); // turns right
@@ -342,6 +333,7 @@ void GameScene::frame() {
 		psyqo::GTE::read<psyqo::GTE::Register::SXY1>(&projected[1].packed);
 		psyqo::GTE::read<psyqo::GTE::Register::SXY2>(&projected[2].packed);
 
+		psyqo::Kernel::assert(t < m_triangles.size(), "triangle index out of bounds");
 		auto &tri = m_triangles[t];
 		tri.primitive.pointA = projected[0];
 		tri.primitive.pointB = projected[1];
