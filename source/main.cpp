@@ -163,7 +163,15 @@ void LoadScene::start(StartReason reason) {
 	g_load_texture.callback = [this](bool success, uint32_t size) {
 		if(success) {
 			g_load_texture.loaded_size = size;
-			// TODO: upload texture to VRAM
+			parse_TIM(cdrom.extractFile(), g_load_texture.loaded_size, &g_object.texture);
+			psyqo::Kernel::assert(g_object.texture.isValid(), "Failed to load texture from TIM file");
+			g_object.texture.tpage = texture::pack_TPage(g_object.texture.ix, g_object.texture.iy, g_object.texture.pmode);
+			g_object.texture.enableDisplayArea();
+			g_object.texture.clut_index = texture::pack_CLUT(g_object.texture.cx, g_object.texture.cy);
+			gpu().uploadToVRAM(g_object.texture.pixel_bytes, {g_object.texture.ix, g_object.texture.iy, g_object.texture.iw, g_object.texture.ih});
+			if(g_object.texture.has_clut) {
+				gpu().uploadToVRAM(g_object.texture.clut_bytes, {g_object.texture.cx, g_object.texture.cy, g_object.texture.cw, g_object.texture.ch});
+			}
 			printf("Loaded texture %d bytes\n", size);
 		} else {
 			printf("Failed to load texture\n");
