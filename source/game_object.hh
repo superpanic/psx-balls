@@ -25,26 +25,17 @@ typedef struct Mesh {
 	bool isValid() const { return num_vertices > 0 && num_indices > 0; }
 } Mesh;
 
-// will be replaced by GameObject class in the future
-typedef struct Object {
-	Mesh mesh;
-	texture::Texture texture;
-	psyqo::Vec3 position;
-	psyqo::Vec3 rotation;
-	psyqo::Vec3 scale = {1.0_fp, 1.0_fp, 1.0_fp};
-} Object;
-
 class GameObject {
 	public:
 		void update(psyqo::Angle angle);
 		void draw(psyqo::OrderingTable<> &ot);
 
-		Mesh *mesh = nullptr;
-		texture::Texture *texture = nullptr;
+		Mesh mesh;
+		texture::Texture texture;
 
 		psyqo::Vec3 position;
 		psyqo::Vec3 rotation;
-		psyqo::Vec3 scale = {1.0f, 1.0f, 1.0f};
+		psyqo::Vec3 scale = {1.0_fp, 1.0_fp, 1.0_fp};
 
 		bool visible = true;
 		bool active = true;

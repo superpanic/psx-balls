@@ -49,7 +49,8 @@ static game_object::Mesh g_meshes[8];
 static LoadRequest g_load_model;
 static LoadRequest g_load_texture;
 
-static game_object::Object g_object;
+//static game_object::Object g_object;
+static game_object::GameObject g_object;
 
 
 class Game final : public psyqo::Application {
