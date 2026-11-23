@@ -15,6 +15,7 @@
 #include "psyqo/font.hh"
 #include "psyqo/simplepad.hh"
 #include "level_buffer.hh"
+#include "camera.hh"
 
 #include <cstddef>
 #include <cstdint>
@@ -145,7 +146,7 @@ void Game::createScene() {
 void LoadScene::start(StartReason reason) {
 	printf("TitleScene started\n");
 
-	g_load_model.setFilename("BALL.GLB;1");
+	g_load_model.setFilename("MILK.GLB;1");
 	g_load_model.loaded_size = 0;
 	g_load_model.callback = [this](bool success, uint32_t size) {
 		if(success) {
@@ -247,12 +248,10 @@ void GameScene::start(StartReason reason) {
 	psyqo::GTE::write<psyqo::GTE::Register::H, psyqo::GTE::Unsafe>(180);
 
 	// set the scaling for Z averaging.
-//	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 3);
-//	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(ORDERING_TABLE_SIZE / 4);
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF3, psyqo::GTE::Unsafe>(50); // agressive otz compression, but larger world space
 	psyqo::GTE::write<psyqo::GTE::Register::ZSF4, psyqo::GTE::Unsafe>(40); // agressive otz compression, but larger world space
 
-	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for untinted texture
+	m_color = {.r = 128, .g = 128, .b = 128}; // neutral gray for un-tinted texture
 }
 
 void GameScene::frame() {
@@ -274,10 +273,6 @@ void GameScene::frame() {
 		printf("Down!\n");
 	}
 
-	// holding the projected 2D results of the 3D vertices, 
-	// which will be used to draw a polygon on screen
-	eastl::array<psyqo::Vertex, 3> projected;
-
 	// get which frame we're currently drawing
 	int parity = gpu().getParity();
 	auto &ot = m_ots[parity];
@@ -287,26 +282,33 @@ void GameScene::frame() {
 	gpu().getNextClear(clear.primitive, c_bg);
 	gpu().chain(clear);
 
-	// distance
+	// set the object Z-distance from origo
 	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
 
-	// 1. Spinning rotations (X then Y)
+	// 1. Spinning X-rotation
 	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rotx, psyqo::SoftMath::Axis::X, game.m_trig);
+	
+	// 2. Spinning Y-rotation
 	auto rotY = psyqo::SoftMath::generateRotationMatrix33(m_roty, psyqo::SoftMath::Axis::Y, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotY, &transform);
 
-	// 2. Optional Z rotation (currently identity)
+	// 3. Optional Z rotation (currently identity)
 	auto rotZ = psyqo::SoftMath::generateRotationMatrix33(m_rotz, psyqo::SoftMath::Axis::Z, game.m_trig);
 	psyqo::SoftMath::multiplyMatrix33(transform, rotZ, &transform);
 
-	// 3. Force the plane to face the camera (90° around X)
+	// 4. Force the plane to face the camera (90° around X)
 	//    Apply this *after* the spinning rotations so the plane stays facing us while it spins.
 	//auto faceCamera = psyqo::SoftMath::generateRotationMatrix33(0.5_pi, psyqo::SoftMath::Axis::X, game.m_trig);
 	//psyqo::SoftMath::multiplyMatrix33(faceCamera, transform, &transform);
 
-	// 4. Write the final matrix once
+	// 5. Write the final matrix once
 	psyqo::GTE::writeUnsafe<psyqo::GTE::PseudoRegister::Rotation>(transform);
 
+	// holding the projected 2D results of the 3D vertices, 
+	// which will be used to draw a polygon on screen
+	eastl::array<psyqo::Vertex, 3> projected;
+
+	// indices of the vertices in the mesh
 	static uint16_t ia, ib, ic;
 
 	// will only run if the mesh has any indices to process
