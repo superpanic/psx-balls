@@ -257,11 +257,11 @@ void GameScene::start(StartReason reason) {
 void GameScene::frame() {
 	auto pad = psyqo::SimplePad::Pad1;
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Left)) { // (press right arrow)
-		m_roty -= psyqo::Angle(0.01); // turns right
+		g_object.position.x -= psyqo::FixedPoint<>(0.01);
 		printf("Left!\n");
 	}
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Right)) { // (press down arrow)
-		m_rotx -= psyqo::Angle(0.01); // rolls backward
+		g_object.position.x += psyqo::FixedPoint<>(0.01);
 		printf("Right!\n");
 	}
 	if(gamePad.isButtonPressed(pad, psyqo::SimplePad::Button::Up)) { // (press up arrow)
@@ -284,6 +284,7 @@ void GameScene::frame() {
 
 	// set the object Z-distance from origo
 	psyqo::GTE::write<psyqo::GTE::Register::TRZ, psyqo::GTE::Unsafe>(6000);
+	psyqo::GTE::write<psyqo::GTE::Register::TRX, psyqo::GTE::Unsafe>(g_object.position.x.raw());
 
 	// 1. Spinning X-rotation
 	auto transform = psyqo::SoftMath::generateRotationMatrix33(m_rotx, psyqo::SoftMath::Axis::X, game.m_trig);

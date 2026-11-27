@@ -20,20 +20,7 @@ typedef struct Camera {
 	psyqo::Vec3 position = {0.0_fp, 0.0_fp, 0.0_fp};
 } Camera;
 
-void look_at(Camera &camera, const psyqo::Vec3 &target) {
-	psyqo::Vec3 forward = target - camera.position;
-	psyqo::SoftMath::fastNormalizeVec3(&forward);
-	psyqo::Vec3 up = {0.0_fp, 1.0_fp, 0.0_fp};
-	psyqo::Vec3 right;
-	psyqo::SoftMath::crossProductVec3(up, forward, &right);
-	psyqo::SoftMath::fastNormalizeVec3(&right);
-	psyqo::SoftMath::crossProductVec3(forward, right, &up);
-	camera.orientation = {{
-		{right.x, right.y, right.z},
-		{up.x, up.y, up.z},
-		{forward.x, forward.y, forward.z}
-	}};
-}
+void look_at(Camera &camera, const psyqo::Vec3 &target);
 
 }
 
