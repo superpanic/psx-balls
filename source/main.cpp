@@ -188,30 +188,6 @@ void LoadScene::start(StartReason reason) {
 
 	cdrom.advance();   // Drive the state machine
 
-/*
-	if (!g_object.mesh.isValid() && g_load_model.loaded_size > 0) {
-		// load the cube mesh from the GLB file
-		parse_GBL(cdrom.extractFile(), g_load_model.loaded_size, &g_object.mesh);
-		psyqo::Kernel::assert(g_object.mesh.isValid(), "Failed to load Cube mesh from GLB file");
-		mesh_ready = true;
-		texture_ready = true;
-	}
-
-	// load the texture from the TIM file
-	if (!g_object.texture.isValid() && g_load_texture.loaded_size > 0) {
-		parse_TIM(cdrom.extractFile(), g_load_texture.loaded_size, &g_object.texture);
-		psyqo::Kernel::assert(g_object.texture.isValid(), "Failed to load texture from TIM file");
-		g_object.texture.tpage = texture::pack_TPage(g_object.texture.ix, g_object.texture.iy, g_object.texture.pmode);
-		g_object.texture.enableDisplayArea();
-		g_object.texture.clut_index = texture::pack_CLUT(g_object.texture.cx, g_object.texture.cy);
-		gpu().uploadToVRAM(g_object.texture.pixel_bytes, {g_object.texture.ix, g_object.texture.iy, g_object.texture.iw, g_object.texture.ih});
-		if(g_object.texture.has_clut) {
-			gpu().uploadToVRAM(g_object.texture.clut_bytes, {g_object.texture.cx, g_object.texture.cy, g_object.texture.cw, g_object.texture.ch});
-		}
-		texture_ready = true;
-	}
-*/
-
 	gpu().clear({.r = 0, .g = 0, .b = 0} );
 	if(g_object.mesh.isValid()) {
 		auto pad = psyqo::SimplePad::Pad1;
